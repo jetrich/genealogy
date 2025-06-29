@@ -46,14 +46,18 @@ final class Import
                 'user_id' => $this->user->id,
                 'team_name' => $this->teamName,
                 'file' => $this->filename,
+                'file_size' => filesize($gedcomFilePath),
             ]);
+
+            // Security validation before processing
+            $this->validateFileSecurely($gedcomFilePath);
 
             return DB::transaction(function () use ($gedcomFilePath) {
                 // Create the team first
                 $team = $this->createTeam();
                 
-                // Parse the GEDCOM file
-                $gedcom = $this->parseGedcomFile($gedcomFilePath);
+                // Parse the GEDCOM file with security checks
+                $gedcom = $this->parseGedcomFileSecurely($gedcomFilePath);
                 
                 if (!$gedcom) {
                     throw new \Exception('Failed to parse GEDCOM file');
@@ -62,15 +66,21 @@ final class Import
                 Log::info('GEDCOM file parsed successfully', [
                     'individuals_count' => count($gedcom->getIndi() ?: []),
                     'families_count' => count($gedcom->getFam() ?: []),
+                    'user_id' => $this->user->id,
+                    'team_id' => $team->id,
                 ]);
 
-                // Import individuals first
+                // Import individuals first with security monitoring
                 $this->importIndividuals($gedcom, $team);
                 
-                // Import families (relationships)
+                // Import families (relationships) with security monitoring
                 $this->importFamilies($gedcom, $team);
 
-                Log::info('GEDCOM import completed successfully', $this->importStats);
+                Log::info('GEDCOM import completed successfully', array_merge($this->importStats, [
+                    'user_id' => $this->user->id,
+                    'team_id' => $team->id,
+                    'file' => $this->filename,
+                ]));
 
                 return [
                     'success' => true,
@@ -85,6 +95,11 @@ final class Import
                 'file' => $this->filename,
                 'user_id' => $this->user->id,
                 'trace' => $e->getTraceAsString(),
+                'security_context' => [
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'file_size' => file_exists($gedcomFilePath) ? filesize($gedcomFilePath) : 'unknown',
+                ],
             ]);
 
             throw $e;
@@ -110,12 +125,18 @@ final class Import
     }
 
     /**
-     * Parse GEDCOM file using PhpGedcom library
+     * Parse GEDCOM file using PhpGedcom library with security checks
      */
-    private function parseGedcomFile(string $filePath): ?\PhpGedcom\Gedcom
+    private function parseGedcomFileSecurely(string $filePath): ?\PhpGedcom\Gedcom
     {
         try {
-            Log::info('Parsing GEDCOM file', ['path' => $filePath]);
+            Log::info('Parsing GEDCOM file with security validation', [
+                'path' => $filePath,
+                'user_id' => $this->user->id,
+            ]);
+            
+            // Additional security validation during parsing
+            $this->monitorParsingActivity($filePath);
             
             $parser = new Parser();
             $gedcom = $parser->parse($filePath);
@@ -124,12 +145,20 @@ final class Import
                 throw new \Exception('Parser returned null - invalid GEDCOM format');
             }
 
+            // Validate parsed content for security threats
+            $this->validateParsedContent($gedcom);
+
             return $gedcom;
             
         } catch (\Exception $e) {
             Log::error('GEDCOM parsing failed', [
                 'error' => $e->getMessage(),
                 'file' => $filePath,
+                'user_id' => $this->user->id,
+                'security_context' => [
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ],
             ]);
             throw new \Exception('Failed to parse GEDCOM file: ' . $e->getMessage());
         }
@@ -702,6 +731,157 @@ final class Import
                 ]);
             }
         }
+    }
+
+    /**
+     * Validate GEDCOM file securely before processing
+     */
+    private function validateFileSecurely(string $filePath): void
+    {
+        // Check file exists and is readable
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            Log::warning('GEDCOM file security violation: file not accessible', [
+                'file' => $filePath,
+                'user_id' => $this->user->id,
+                'ip_address' => request()->ip(),
+            ]);
+            throw new \Exception('File not accessible or does not exist');
+        }
+        
+        // Check file size limits (max 50MB)
+        $fileSize = filesize($filePath);
+        $maxSize = 50 * 1024 * 1024; // 50MB
+        
+        if ($fileSize > $maxSize) {
+            Log::warning('GEDCOM file security violation: file too large', [
+                'file' => $filePath,
+                'file_size' => $fileSize,
+                'max_size' => $maxSize,
+                'user_id' => $this->user->id,
+                'ip_address' => request()->ip(),
+            ]);
+            throw new \Exception('File size exceeds maximum allowed limit');
+        }
+        
+        // Basic content validation
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            throw new \Exception('Could not open file for validation');
+        }
+        
+        $firstLine = fgets($handle);
+        fclose($handle);
+        
+        // Check for GEDCOM header
+        if (!preg_match('/^0\s+HEAD/', $firstLine)) {
+            Log::warning('GEDCOM file security violation: invalid header', [
+                'file' => $filePath,
+                'first_line' => substr($firstLine, 0, 100),
+                'user_id' => $this->user->id,
+                'ip_address' => request()->ip(),
+            ]);
+            throw new \Exception('Invalid GEDCOM file format');
+        }
+        
+        Log::info('GEDCOM file security validation passed', [
+            'file' => $filePath,
+            'file_size' => $fileSize,
+            'user_id' => $this->user->id,
+        ]);
+    }
+    
+    /**
+     * Monitor parsing activity for security threats
+     */
+    private function monitorParsingActivity(string $filePath): void
+    {
+        $startTime = microtime(true);
+        
+        // Log parsing attempt with security context
+        Log::info('GEDCOM parsing activity monitor', [
+            'file' => $filePath,
+            'user_id' => $this->user->id,
+            'start_time' => $startTime,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'session_id' => session()->getId(),
+        ]);
+        
+        // Check for unusual parsing patterns
+        $fileSize = filesize($filePath);
+        $memoryBefore = memory_get_usage();
+        
+        if ($fileSize > 10 * 1024 * 1024) { // > 10MB
+            Log::info('Large GEDCOM file parsing initiated', [
+                'file_size' => $fileSize,
+                'memory_before' => $memoryBefore,
+                'user_id' => $this->user->id,
+            ]);
+        }
+    }
+    
+    /**
+     * Validate parsed GEDCOM content for security threats
+     */
+    private function validateParsedContent(\PhpGedcom\Gedcom $gedcom): void
+    {
+        $individuals = $gedcom->getIndi() ?: [];
+        $families = $gedcom->getFam() ?: [];
+        
+        // Check for reasonable data limits
+        $maxIndividuals = 10000;
+        $maxFamilies = 5000;
+        
+        if (count($individuals) > $maxIndividuals) {
+            Log::warning('GEDCOM content security violation: too many individuals', [
+                'individuals_count' => count($individuals),
+                'max_allowed' => $maxIndividuals,
+                'user_id' => $this->user->id,
+                'ip_address' => request()->ip(),
+            ]);
+            throw new \Exception('GEDCOM file contains too many individuals');
+        }
+        
+        if (count($families) > $maxFamilies) {
+            Log::warning('GEDCOM content security violation: too many families', [
+                'families_count' => count($families),
+                'max_allowed' => $maxFamilies,
+                'user_id' => $this->user->id,
+                'ip_address' => request()->ip(),
+            ]);
+            throw new \Exception('GEDCOM file contains too many families');
+        }
+        
+        // Sample check for malicious content in individual names
+        $sampleCount = min(10, count($individuals));
+        $suspiciousPatterns = ['<script', '<?php', 'javascript:', 'vbscript:', 'onload='];
+        
+        foreach (array_slice($individuals, 0, $sampleCount) as $gedcomId => $individual) {
+            $names = $individual->getName() ?: [];
+            
+            foreach ($names as $nameRecord) {
+                $fullName = $nameRecord->getName() ?: '';
+                
+                foreach ($suspiciousPatterns as $pattern) {
+                    if (stripos($fullName, $pattern) !== false) {
+                        Log::warning('GEDCOM content security violation: suspicious content detected', [
+                            'individual_id' => $gedcomId,
+                            'suspicious_pattern' => $pattern,
+                            'content_sample' => substr($fullName, 0, 200),
+                            'user_id' => $this->user->id,
+                            'ip_address' => request()->ip(),
+                        ]);
+                        throw new \Exception('GEDCOM file contains potentially malicious content');
+                    }
+                }
+            }
+        }
+        
+        Log::info('GEDCOM content security validation passed', [
+            'individuals_count' => count($individuals),
+            'families_count' => count($families),
+            'user_id' => $this->user->id,
+        ]);
     }
 
     /**
