@@ -62,6 +62,13 @@ class SecurityMonitoring
             $this->logSecurityThreat('genealogy_data_attack', $request, [
                 'severity' => 'high',
                 'attack_type' => 'unauthorized_family_data_access',
+                'debug_path' => $request->path(),
+                'debug_method' => $request->method(),
+                'debug_user_id' => auth()->id(),
+                'debug_current_team' => auth()->user()?->currentTeam?->id,
+                'debug_all_teams' => auth()->user()?->allTeams()->pluck('id')->toArray(),
+                'debug_url_segments' => $request->segments(),
+                'debug_is_gedcom_import' => $this->isGedcomImportOperation($request),
             ]);
             
             abort(403, 'Access violation: Unauthorized genealogy data access attempt');
@@ -200,6 +207,11 @@ class SecurityMonitoring
         if ($this->isGedcomImportOperation($request)) {
             return false;
         }
+
+        // Skip security checks for legitimate team management operations
+        if ($this->isTeamManagementOperation($request)) {
+            return false;
+        }
         
         // Check cross-team data access attempts
         if (auth()->check() && $this->detectCrossTeamAccess($request)) {
@@ -286,10 +298,13 @@ class SecurityMonitoring
      */
     private function isGedcomImportOperation(Request $request): bool
     {
-        // GEDCOM import paths
+        // GEDCOM import paths - be more comprehensive
         $gedcomPaths = [
             'gedcom/importteam',
+            'gedcom/exportteam', 
             'livewire/message/gedcom.importteam',
+            'livewire/message/gedcom.exportteam',
+            'livewire/update',
         ];
         
         foreach ($gedcomPaths as $path) {
@@ -299,8 +314,45 @@ class SecurityMonitoring
         }
         
         // Check for Livewire GEDCOM component updates
-        if ($request->hasHeader('X-Livewire') && 
-            str_contains($request->getContent(), 'importteam')) {
+        if ($request->hasHeader('X-Livewire')) {
+            $content = $request->getContent();
+            if (str_contains($content, 'importteam') || 
+                str_contains($content, 'exportteam') ||
+                str_contains($content, 'Gedcom')) {
+                return true;
+            }
+        }
+        
+        // Check if this is a team creation/management operation related to GEDCOM
+        $requestData = $request->all();
+        if (isset($requestData['name']) && $request->isMethod('POST') && 
+            str_contains($request->path(), 'gedcom')) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Check if request is a legitimate team management operation.
+     */
+    private function isTeamManagementOperation(Request $request): bool
+    {
+        // Team management paths
+        $teamPaths = [
+            'current-team',
+            'teams',
+            'team-invitations',
+        ];
+        
+        foreach ($teamPaths as $path) {
+            if (str_contains($request->path(), $path)) {
+                return true;
+            }
+        }
+        
+        // Jetstream team switching
+        if ($request->is('current-team') && $request->isMethod('PUT')) {
             return true;
         }
         
@@ -317,18 +369,29 @@ class SecurityMonitoring
         }
         
         $user = auth()->user();
-        $userTeamId = $user->currentTeam?->id;
         
-        // Skip if user has no current team (new users, GEDCOM imports)
-        if (!$userTeamId) {
+        // Get all team IDs the user has access to
+        $userTeamIds = $user->allTeams()->pluck('id')->toArray();
+        
+        // Skip if user has no teams
+        if (empty($userTeamIds)) {
             return false;
         }
         
         // Check URL parameters for team manipulation
         $urlSegments = $request->segments();
         foreach ($urlSegments as $segment) {
-            if (is_numeric($segment) && $segment != $userTeamId) {
-                // This might be an attempt to access another team's data
+            if (is_numeric($segment) && !in_array((int)$segment, $userTeamIds)) {
+                // This is an attempt to access a team the user doesn't belong to
+                return true;
+            }
+        }
+        
+        // Check for team_id in request data
+        $requestData = $request->all();
+        if (isset($requestData['team_id'])) {
+            $teamId = (int)$requestData['team_id'];
+            if (!in_array($teamId, $userTeamIds)) {
                 return true;
             }
         }
