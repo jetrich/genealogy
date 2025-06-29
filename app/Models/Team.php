@@ -28,6 +28,7 @@ final class Team extends JetstreamTeam
         'name',
         'description',
         'personal_team',
+        'user_id',
     ];
 
     /**
