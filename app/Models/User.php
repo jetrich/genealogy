@@ -58,9 +58,17 @@ final class User extends Authenticatable
 
         'language',
         'timezone',
-        'is_developer',
 
         'seen_at',
+    ];
+
+    /**
+     * The attributes that aren't mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $guarded = [
+        'is_developer',
     ];
 
     /**

@@ -64,6 +64,10 @@ final class JetstreamServiceProvider extends ServiceProvider
             'couple:read',
             'couple:update',
             'couple:delete',
+
+            'team:import',
+            'team:export',
+            'team:manage',
         ])->description('Administrators can perform any action and manage the application.');
 
         Jetstream::role('manager', 'Manager', [
@@ -76,7 +80,10 @@ final class JetstreamServiceProvider extends ServiceProvider
             'couple:read',
             'couple:update',
             'couple:delete',
-        ])->description('Managers can perform any action on people.');
+
+            'team:import',
+            'team:export',
+        ])->description('Managers can perform any action on people and import/export data.');
 
         Jetstream::role('editor', 'Editor', [
             'person:create',
@@ -86,7 +93,10 @@ final class JetstreamServiceProvider extends ServiceProvider
             'couple:create',
             'couple:read',
             'couple:update',
-        ])->description('Editors have the ability to create, read and update people.');
+
+            'team:import',
+            'team:export',
+        ])->description('Editors have the ability to create, read and update people and import/export data.');
 
         Jetstream::role('member', 'Member', [
             'person:read',

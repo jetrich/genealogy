@@ -57,6 +57,10 @@ final class CreateNewUser implements CreatesNewUsers
             'personal_team' => true,
         ]));
 
+        // Add the user to their personal team with administrator role
+        // This ensures they have all permissions including GEDCOM import/export
+        $team->users()->attach($user->id, ['role' => 'administrator']);
+
         // Set the current_team_id to the newly created personal team
         $user->current_team_id = $team->id;
         $user->save();
