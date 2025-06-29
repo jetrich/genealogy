@@ -1,0 +1,268 @@
+name: Security Monitoring & Vulnerability Scanning
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6 AM  
+    - cron: '0 18 * * *' # Daily 6 PM
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Manual trigger
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '20'
+
+jobs:
+  dependency-security-audit:
+    runs-on: ubuntu-latest
+    name: 🔍 Dependency Security Audit
+    
+    steps:
+      - name: Checkout jetrich/genealogy
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql
+          coverage: none
+          tools: composer:v2
+          
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+          
+      - name: Install Composer Dependencies
+        run: |
+          composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+        
+      - name: Install NPM Dependencies  
+        run: npm ci --silent
+        
+      - name: Create reports directory
+        run: mkdir -p reports
+        
+      - name: 🛡️ Composer Security Audit
+        run: |
+          echo "::group::Composer Security Audit"
+          composer audit --no-dev --format=table
+          composer audit --no-dev --format=json > reports/composer-audit.json || true
+          echo "::endgroup::"
+        continue-on-error: true
+          
+      - name: 🛡️ NPM Security Audit
+        run: |
+          echo "::group::NPM Security Audit"
+          npm audit --audit-level=moderate || true
+          npm audit --json > reports/npm-audit.json || true
+          echo "::endgroup::"
+        continue-on-error: true
+          
+      - name: 🛡️ PHP Security Advisory Database
+        run: |
+          echo "::group::PHP Security Advisory Check"
+          curl -H "Accept: text/plain" https://security.symfony.com/check_lock -F lock=@composer.lock || true
+          echo "::endgroup::"
+        continue-on-error: true
+          
+      - name: 📊 Upload Security Reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-audit-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
+
+  laravel-security-analysis:
+    runs-on: ubuntu-latest
+    name: 🔍 Laravel Security Analysis
+    
+    steps:
+      - name: Checkout jetrich/genealogy
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist
+        
+      - name: Prepare Laravel Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+        
+      - name: 🛡️ Laravel Security Scanner (Enlightn)
+        run: |
+          echo "::group::Laravel Security Analysis"
+          composer require --dev enlightn/enlightn --no-interaction || true
+          php artisan enlightn --report --ci || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+  static-security-analysis:
+    runs-on: ubuntu-latest  
+    name: 🔍 Static Security Analysis
+    
+    steps:
+      - name: Checkout jetrich/genealogy
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist
+        
+      - name: 🛡️ PHPStan Security Analysis
+        run: |
+          echo "::group::PHPStan Security Analysis"
+          composer require --dev phpstan/phpstan --no-interaction || true
+          vendor/bin/phpstan analyse --level=6 app/ --error-format=github || true
+          echo "::endgroup::"
+        continue-on-error: true
+
+  docker-security-scan:
+    runs-on: ubuntu-latest
+    name: 🐳 Docker Security Scan
+    
+    steps:
+      - name: Checkout jetrich/genealogy
+        uses: actions/checkout@v4
+        
+      - name: 🛡️ Hadolint Dockerfile Security
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+        continue-on-error: true
+          
+      - name: Build Docker Image for Security Scan
+        run: |
+          docker build -t genealogy:latest .
+        continue-on-error: true
+          
+      - name: 🛡️ Trivy Container Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'genealogy:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+  genealogy-specific-security:
+    runs-on: ubuntu-latest
+    name: 🧬 Genealogy Security Checks
+    
+    steps:
+      - name: Checkout jetrich/genealogy
+        uses: actions/checkout@v4
+        
+      - name: 🛡️ Genealogy-Specific Security Pattern Analysis
+        run: |
+          echo "::group::Genealogy Security Pattern Analysis"
+          
+          # Check for hardcoded sensitive data
+          echo "🔍 Checking for hardcoded secrets..."
+          if grep -r "password.*=" app/ --include="*.php" | grep -v "bcrypt\|Hash::" || true; then
+            echo "⚠️ Potential hardcoded passwords found"
+          fi
+          
+          # Check for team isolation issues
+          echo "🔍 Checking team isolation patterns..."
+          if grep -r "is_developer.*return" app/ --include="*.php" || true; then
+            echo "⚠️ Potential developer bypass patterns found"
+          fi
+          
+          # Check for GEDCOM security issues
+          echo "🔍 Checking GEDCOM handling security..."
+          if grep -r "file_get_contents\|file_put_contents" app/ --include="*.php" | grep -v "safe" || true; then
+            echo "⚠️ Potential unsafe file operations found"
+          fi
+          
+          # Check for mass assignment vulnerabilities
+          echo "🔍 Checking mass assignment protection..."
+          grep -r "fillable.*=\|guarded.*=" app/Models/ --include="*.php" || echo "No mass assignment configuration found"
+          
+          # Check for SQL injection patterns
+          echo "🔍 Checking for SQL injection vulnerabilities..."
+          if grep -r "DB::raw\|->raw(" app/ --include="*.php" | grep -v "// SAFE:" || true; then
+            echo "⚠️ Potential SQL injection vulnerabilities found"
+          fi
+          
+          # Check for cross-team data access issues
+          echo "🔍 Checking cross-team data access patterns..."
+          if grep -r "team_id.*=" app/ --include="*.php" | grep -v "auth()->user()->currentTeam" || true; then
+            echo "⚠️ Potential cross-team access issues found"
+          fi
+          
+          # Check for file upload security
+          echo "🔍 Checking file upload security..."
+          if grep -r "move_uploaded_file\|file_put_contents.*request" app/ --include="*.php" || true; then
+            echo "⚠️ Potential unsafe file upload patterns found"
+          fi
+          
+          echo "::endgroup::"
+
+  security-summary:
+    runs-on: ubuntu-latest
+    name: 📋 Security Summary Report
+    needs: [dependency-security-audit, laravel-security-analysis, static-security-analysis, docker-security-scan, genealogy-specific-security]
+    if: always()
+    
+    steps:
+      - name: Download security reports
+        uses: actions/download-artifact@v3
+        with:
+          name: security-audit-reports-${{ github.run_number }}
+          path: reports/
+        continue-on-error: true
+          
+      - name: 📊 Generate Security Summary
+        run: |
+          echo "# Security Monitoring Summary - $(date)" > security-summary.md
+          echo "" >> security-summary.md
+          echo "## Workflow Status" >> security-summary.md
+          echo "- Dependency Audit: ${{ needs.dependency-security-audit.result }}" >> security-summary.md
+          echo "- Laravel Analysis: ${{ needs.laravel-security-analysis.result }}" >> security-summary.md
+          echo "- Static Analysis: ${{ needs.static-security-analysis.result }}" >> security-summary.md
+          echo "- Docker Security: ${{ needs.docker-security-scan.result }}" >> security-summary.md
+          echo "- Genealogy Checks: ${{ needs.genealogy-specific-security.result }}" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "## Recommendations" >> security-summary.md
+          echo "- Review any identified vulnerabilities" >> security-summary.md
+          echo "- Update dependencies with security patches" >> security-summary.md
+          echo "- Monitor security events in application logs" >> security-summary.md
+          echo "- Ensure proper team isolation controls" >> security-summary.md
+          
+      - name: 📤 Upload Security Summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-summary-${{ github.run_number }}
+          path: security-summary.md
+          retention-days: 90

@@ -102,6 +102,23 @@ Route::middleware([
         // backups
         // -----------------------------------------------------------------------------------
         Route::get('backups', App\Livewire\Backups\Manage::class)->name('backups');
+        
+        // -----------------------------------------------------------------------------------
+        // secure administrative access (requires admin context headers)
+        // -----------------------------------------------------------------------------------
+        Route::controller(App\Http\Controllers\Admin\CrossTeamController::class)
+            ->prefix('admin')
+            ->as('admin.')
+            ->group(function (): void {
+                Route::get('health', 'healthCheck')->name('health');
+                Route::get('people', 'allPeople')->name('people');
+                Route::get('couples', 'allCouples')->name('couples');
+                Route::get('statistics', 'teamStatistics')->name('statistics');
+                Route::get('team/{teamId}', 'teamDetails')->name('team.details');
+                
+                // Security monitoring dashboard
+                Route::get('security', App\Livewire\Admin\SecurityDashboard::class)->name('security');
+            });
     });
 });
 

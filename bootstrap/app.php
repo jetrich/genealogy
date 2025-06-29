@@ -16,11 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append : [
             App\Http\Middleware\Localization::class,
+            App\Http\Middleware\SecurityMonitoring::class,
 
             // App\Http\Middleware\LogAllRequests::class,
         ]);
 
-        // $middleware->alias([]);
+        $middleware->alias([
+            'admin.context' => App\Http\Middleware\AdminContextMiddleware::class,
+            'permission' => App\Http\Middleware\HasPermission::class,
+            'developer' => App\Http\Middleware\IsDeveloper::class,
+            'security' => App\Http\Middleware\SecurityMonitoring::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
