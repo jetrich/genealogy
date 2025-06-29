@@ -77,7 +77,7 @@ final class Importteam extends Component
                 $this->toast()->success(__('gedcom.import_success'), $message)->send();
 
                 // Redirect to the new team
-                return redirect()->route('teams.show', $team);
+                $this->redirect(route('teams.show', $team));
             } else {
                 $this->toast()->error(__('gedcom.import_failed'))->send();
             }
