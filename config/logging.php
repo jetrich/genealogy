@@ -81,6 +81,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => 30,
             'replace_placeholders' => true,
+            'tap' => [App\Logging\SecurityLogFormatter::class],
         ],
         
         'admin' => [
@@ -89,6 +90,40 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => 90,
             'replace_placeholders' => true,
+            'tap' => [App\Logging\AdminLogFormatter::class],
+        ],
+        
+        'genealogy' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/genealogy.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 365, // Keep genealogy logs for 1 year
+            'replace_placeholders' => true,
+        ],
+        
+        'gedcom' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/gedcom.log'), 
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 90,
+            'replace_placeholders' => true,
+        ],
+        
+        'files' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/files.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 60,
+            'replace_placeholders' => true,
+        ],
+        
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 2555, // Keep audit logs for 7 years (compliance)
+            'replace_placeholders' => true,
+            'tap' => [App\Logging\AuditLogFormatter::class],
         ],
 
         'slack' => [

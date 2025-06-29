@@ -12,14 +12,25 @@ final class IsDeveloper
 {
     /**
      * Handle an incoming request.
+     * 
+     * DEPRECATED: This middleware is being phased out in favor of granular permissions.
+     * Use HasPermission middleware instead for new implementations.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // -----------------------------------------------------------------------
-        // Check if the user has developer privileges
-        // -----------------------------------------------------------------------
-        if (! $request->user()?->is_developer) {
-            abort(403, 'Forbidden');
+        $user = $request->user();
+        
+        if (!$user) {
+            abort(403, 'Authentication required');
+        }
+        
+        // Check for legacy developer access OR modern developer permissions
+        $hasAccess = $user->is_developer || 
+                    $user->hasPermission('admin.developer.database') ||
+                    $user->hasPermission('admin.developer.debug');
+        
+        if (!$hasAccess) {
+            abort(403, 'Insufficient privileges');
         }
 
         return $next($request);

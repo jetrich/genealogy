@@ -1,0 +1,125 @@
+# =============================================================================
+# MySQL Configuration for Laravel Genealogy Application
+# =============================================================================
+# Optimized for genealogical data with complex relationships and CTEs
+
+[mysqld]
+# Basic Settings
+default-storage-engine=InnoDB
+default-table-type=InnoDB
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+init-connect='SET NAMES utf8mb4'
+
+# SQL Mode - Optimized for Laravel
+sql_mode=STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO
+
+# Connection Settings
+max_connections=200
+max_connect_errors=1000
+max_user_connections=0
+thread_cache_size=50
+thread_stack=512K
+interactive_timeout=28800
+wait_timeout=28800
+
+# Buffer Settings - Optimized for genealogy data
+innodb_buffer_pool_size=512M
+innodb_buffer_pool_instances=2
+innodb_log_file_size=128M
+innodb_log_buffer_size=32M
+innodb_flush_log_at_trx_commit=2
+innodb_file_per_table=1
+innodb_open_files=400
+
+# Query Cache (deprecated in MySQL 8.0 but keeping for compatibility)
+query_cache_type=0
+query_cache_size=0
+
+# MyISAM Settings
+key_buffer_size=32M
+table_open_cache=400
+table_definition_cache=400
+
+# Temporary Tables
+tmp_table_size=64M
+max_heap_table_size=64M
+
+# Sorting and Grouping
+sort_buffer_size=4M
+read_buffer_size=2M
+read_rnd_buffer_size=8M
+join_buffer_size=8M
+
+# Binary Logging
+log_bin=mysql-bin
+binlog_format=ROW
+expire_logs_days=7
+max_binlog_size=100M
+sync_binlog=1
+
+# Error Logging
+log_error=/var/log/mysql/error.log
+log_error_verbosity=2
+
+# Slow Query Log
+slow_query_log=1
+slow_query_log_file=/var/log/mysql/slow.log
+long_query_time=2
+log_queries_not_using_indexes=0
+
+# General Query Log (disable in production)
+general_log=0
+general_log_file=/var/log/mysql/general.log
+
+# Performance Schema
+performance_schema=ON
+performance-schema-instrument='wait/synch/mutex/innodb/%=ON'
+performance-schema-instrument='wait/synch/rwlock/innodb/%=ON'
+performance-schema-instrument='wait/io/file/innodb/%=ON'
+
+# InnoDB Settings for Genealogy Data
+innodb_thread_concurrency=0
+innodb_read_io_threads=4
+innodb_write_io_threads=4
+innodb_io_capacity=200
+innodb_io_capacity_max=400
+innodb_flush_method=O_DIRECT
+innodb_file_format=Barracuda
+innodb_large_prefix=1
+innodb_lock_wait_timeout=50
+innodb_rollback_on_timeout=1
+innodb_print_all_deadlocks=1
+
+# Group Replication (for clustering)
+disabled_storage_engines="MyISAM,BLACKHOLE,FEDERATED,ARCHIVE,MEMORY"
+
+# Security
+local_infile=0
+secure_file_priv=""
+
+# Networking
+bind_address=0.0.0.0
+port=3306
+max_allowed_packet=64M
+
+# Timezone
+default_time_zone='+00:00'
+
+# Session Settings
+autocommit=1
+foreign_key_checks=1
+unique_checks=1
+
+[mysql]
+default-character-set=utf8mb4
+
+[mysqldump]
+default-character-set=utf8mb4
+single-transaction=true
+routines=true
+triggers=true
+
+[client]
+default-character-set=utf8mb4
+port=3306

@@ -7,6 +7,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -19,6 +20,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Activitylog\Traits\LogsActivity;
+use Carbon\Carbon;
 
 // -------------------------------------------------------------------------------------------
 // ATTENTION :
@@ -58,9 +60,17 @@ final class User extends Authenticatable
 
         'language',
         'timezone',
-        'is_developer',
 
         'seen_at',
+    ];
+
+    /**
+     * The attributes that are not mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $guarded = [
+        'is_developer',
     ];
 
     /**
@@ -127,9 +137,149 @@ final class User extends Authenticatable
     }
 
     /* -------------------------------------------------------------------------------------------- */
+    // Permission System Methods
+    /* -------------------------------------------------------------------------------------------- */
+    
+    /**
+     * The permissions relationship.
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permissions')
+                    ->withPivot(['granted_at', 'granted_by', 'expires_at', 'justification'])
+                    ->withTimestamps();
+    }
+
+    /**
+     * Check if user has specific permission.
+     */
     public function hasPermission(string $permission): bool
     {
-        return $this->hasTeamPermission($this->currentTeam, $permission);
+        // Check for active (non-expired) permission
+        return $this->permissions()
+            ->where('name', $permission)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                      ->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+    }
+
+    /**
+     * Check if user has any of the given permissions.
+     */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($permission)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if user has all of the given permissions.
+     */
+    public function hasAllPermissions(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if (!$this->hasPermission($permission)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Grant permission to user with full audit trail.
+     */
+    public function grantPermission(string $permissionName, User $grantedBy, ?string $justification = null, ?Carbon $expiresAt = null): void
+    {
+        $permission = Permission::where('name', $permissionName)->firstOrFail();
+        
+        // Check if permission already exists
+        if ($this->hasPermission($permissionName)) {
+            throw new \Exception("User already has permission: {$permissionName}");
+        }
+        
+        // Grant the permission
+        $this->permissions()->attach($permission->id, [
+            'granted_at' => now(),
+            'granted_by' => $grantedBy->id,
+            'expires_at' => $expiresAt,
+            'justification' => $justification,
+        ]);
+        
+        // Log the action
+        $this->logPermissionAction('granted', $permission, $grantedBy, $justification);
+        
+        // Activity log for broader system audit
+        activity('permission')
+            ->performedOn($this)
+            ->by($grantedBy)
+            ->withProperties([
+                'permission' => $permissionName,
+                'justification' => $justification,
+                'expires_at' => $expiresAt,
+                'ip_address' => request()->ip(),
+            ])
+            ->log("Permission '{$permissionName}' granted to user");
+    }
+
+    /**
+     * Revoke permission from user.
+     */
+    public function revokePermission(string $permissionName, User $revokedBy, ?string $reason = null): void
+    {
+        $permission = Permission::where('name', $permissionName)->firstOrFail();
+        
+        if (!$this->hasPermission($permissionName)) {
+            throw new \Exception("User does not have permission: {$permissionName}");
+        }
+        
+        // Revoke the permission
+        $this->permissions()->detach($permission->id);
+        
+        // Log the action
+        $this->logPermissionAction('revoked', $permission, $revokedBy, $reason);
+        
+        // Activity log
+        activity('permission')
+            ->performedOn($this)
+            ->by($revokedBy)
+            ->withProperties([
+                'permission' => $permissionName,
+                'reason' => $reason,
+                'ip_address' => request()->ip(),
+            ])
+            ->log("Permission '{$permissionName}' revoked from user");
+    }
+
+    /**
+     * Log permission action to audit table.
+     */
+    private function logPermissionAction(string $action, Permission $permission, User $performedBy, ?string $context = null): void
+    {
+        DB::table('permission_audit_log')->insert([
+            'user_id' => $this->id,
+            'permission_id' => $permission->id,
+            'action' => $action,
+            'performed_by' => $performedBy->id,
+            'context' => $context ? json_encode(['note' => $context]) : null,
+            'performed_at' => now(),
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+    }
+
+    /**
+     * Backward compatibility: Check for is_developer flag or modern permissions.
+     * This method will be deprecated once migration is complete.
+     */
+    public function hasLegacyDeveloperAccess(): bool
+    {
+        return $this->is_developer || $this->hasPermission('admin.developer.database');
     }
 
     public function teamsStatistics(): Collection

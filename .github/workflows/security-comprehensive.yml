@@ -1,0 +1,133 @@
+name: Comprehensive Security Monitoring
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6 AM  
+    - cron: '0 18 * * *' # Daily 6 PM
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dependency-security-scan:
+    runs-on: ubuntu-latest
+    name: Dependency Security Analysis
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql
+          coverage: none
+          
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          
+      - name: Install PHP Dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+        
+      - name: Install Node Dependencies  
+        run: npm ci --silent
+        
+      - name: Run Composer Security Audit
+        run: |
+          echo "🔍 Running Composer security audit..."
+          composer audit --no-dev --format=table || echo "Security issues found"
+          composer audit --no-dev --format=json > composer-audit.json || true
+          
+      - name: Run NPM Security Audit
+        run: |
+          echo "🔍 Running NPM security audit..."
+          npm audit --audit-level=moderate || echo "NPM security issues found"
+          npm audit --json > npm-audit.json || true
+          
+      - name: Advanced Security Advisory Check
+        run: |
+          echo "🔍 Running advanced security checks..."
+          npx audit-ci --moderate || echo "Advanced security issues found"
+          
+      - name: PHP Security Checker (Sensio)
+        run: |
+          echo "🔍 Running PHP security checker..."
+          curl -H "Accept: text/plain" https://security.symfony.com/check_lock -F lock=@composer.lock || echo "PHP security issues found"
+          
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            composer-audit.json
+            npm-audit.json
+          retention-days: 30
+
+  laravel-security-scan:
+    runs-on: ubuntu-latest
+    name: Laravel Security Analysis
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist
+        
+      - name: Laravel Security Scanner (Enlightn)
+        run: |
+          echo "🔍 Running Laravel security analysis..."
+          composer require --dev enlightn/enlightn --no-interaction
+          cp .env.example .env
+          php artisan key:generate
+          php artisan enlightn --report --ci || echo "Laravel security issues found"
+
+  static-analysis-security:
+    runs-on: ubuntu-latest  
+    name: Static Analysis Security
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          
+      - name: Install Dependencies
+        run: composer install --no-interaction
+        
+      - name: PHPStan Security Analysis
+        run: |
+          echo "🔍 Running PHPStan security analysis..."
+          composer require --dev phpstan/phpstan --no-interaction
+          vendor/bin/phpstan analyse --level=6 app/ --error-format=github || echo "PHPStan issues found"
+          
+  dockerfile-security:
+    runs-on: ubuntu-latest
+    name: Dockerfile Security Scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run Hadolint (Dockerfile linter)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning

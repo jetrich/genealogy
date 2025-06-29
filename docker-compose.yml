@@ -1,0 +1,344 @@
+# =============================================================================
+# Docker Compose Configuration for Laravel Genealogy Application
+# =============================================================================
+# Multi-environment support: development, staging, production
+# Includes: MySQL, Redis, PHP-FPM, Nginx, Queue Workers, Scheduler
+
+version: '3.8'
+
+networks:
+  genealogy-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  storage-data:
+    driver: local
+  backup-data:
+    driver: local
+
+services:
+  # =============================================================================
+  # Database Service - MySQL 8.0 with genealogy optimizations
+  # =============================================================================
+  database:
+    image: mysql:8.0
+    container_name: genealogy-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-genealogy_root_pass}
+      MYSQL_DATABASE: ${DB_DATABASE:-genealogy}
+      MYSQL_USER: ${DB_USERNAME:-genealogy_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    networks:
+      - genealogy-network
+    command: [
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci",
+      "--innodb-buffer-pool-size=256M",
+      "--innodb-log-file-size=64M",
+      "--innodb-flush-log-at-trx-commit=2",
+      "--innodb-file-per-table=1",
+      "--max-connections=200",
+      "--table-open-cache=400",
+      "--query-cache-size=32M",
+      "--tmp-table-size=64M",
+      "--max-heap-table-size=64M"
+    ]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+      start_period: 60s
+
+  # =============================================================================
+  # Cache Service - Redis for session storage and caching
+  # =============================================================================
+  cache:
+    image: redis:7-alpine
+    container_name: genealogy-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - genealogy-network
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 3
+      interval: 30s
+
+  # =============================================================================
+  # Application Service - Laravel PHP Application
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-development}
+      args:
+        - ENVIRONMENT=${ENVIRONMENT:-development}
+    container_name: genealogy-app
+    restart: unless-stopped
+    environment:
+      # Laravel Environment
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL:-http://localhost}
+      
+      # Database Configuration
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-genealogy}
+      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
+      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      
+      # Cache and Session Configuration
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      
+      # Redis Configuration
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Mail Configuration
+      MAIL_MAILER: ${MAIL_MAILER:-log}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-tls}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@genealogy.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Genealogy}
+      
+      # File Storage
+      FILESYSTEM_DISK: local
+      
+      # Backup Configuration
+      BACKUP_DISK: backups
+      BACKUP_MAIL_ADDRESS: ${BACKUP_MAIL_ADDRESS:-admin@genealogy.local}
+      
+      # Application Specific
+      APP_LOCALE: ${APP_LOCALE:-en}
+      APP_FALLBACK_LOCALE: ${APP_FALLBACK_LOCALE:-en}
+      
+    volumes:
+      - storage-data:/var/www/html/storage
+      - backup-data:/var/www/html/storage/app/backups
+      - ./public/xml:/var/www/html/public/xml:ro
+      - ./lang:/var/www/html/lang:ro
+    ports:
+      - "${APP_PORT:-80}:80"
+    networks:
+      - genealogy-network
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      timeout: 10s
+      retries: 3
+      interval: 30s
+      start_period: 90s
+
+  # =============================================================================
+  # Queue Worker Service - Laravel Queue Processing
+  # =============================================================================
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-development}
+    container_name: genealogy-queue
+    restart: unless-stopped
+    environment:
+      # Inherit all app environment variables
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY}
+      
+      # Database Configuration
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-genealogy}
+      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
+      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      
+      # Redis Configuration
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      QUEUE_CONNECTION: redis
+      
+    volumes:
+      - storage-data:/var/www/html/storage
+      - backup-data:/var/www/html/storage/app/backups
+    networks:
+      - genealogy-network
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600", "--queue=default,media-conversions,backups"]
+
+  # =============================================================================
+  # Scheduler Service - Laravel Task Scheduling
+  # =============================================================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-development}
+    container_name: genealogy-scheduler
+    restart: unless-stopped
+    environment:
+      # Inherit all app environment variables
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY}
+      
+      # Database Configuration
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-genealogy}
+      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
+      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      
+      # Redis Configuration
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+    volumes:
+      - storage-data:/var/www/html/storage
+      - backup-data:/var/www/html/storage/app/backups
+    networks:
+      - genealogy-network
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    command: ["sh", "-c", "while true; do php artisan schedule:run; sleep 60; done"]
+
+  # =============================================================================
+  # Backup Service - Automated Database and File Backups
+  # =============================================================================
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-development}
+    container_name: genealogy-backup
+    restart: unless-stopped
+    environment:
+      # Backup specific environment
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY}
+      
+      # Database Configuration
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-genealogy}
+      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
+      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      
+      # Backup Configuration
+      BACKUP_DISK: backups
+      BACKUP_MAIL_ADDRESS: ${BACKUP_MAIL_ADDRESS:-admin@genealogy.local}
+      
+    volumes:
+      - storage-data:/var/www/html/storage
+      - backup-data:/var/www/html/storage/app/backups
+      - mysql-data:/backup/mysql:ro
+    networks:
+      - genealogy-network
+    depends_on:
+      database:
+        condition: service_healthy
+    profiles:
+      - backup
+    command: ["sh", "-c", "while true; do php artisan backup:run --only-db; sleep 86400; done"]
+
+# =============================================================================
+# Development Override Configuration
+# =============================================================================
+  # Hot Reload Development Service (only for development)
+  dev-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: genealogy-dev
+    restart: unless-stopped
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: ${APP_KEY}
+      VITE_DEV_SERVER_HOST: 0.0.0.0
+      VITE_DEV_SERVER_PORT: 5173
+    volumes:
+      - ./:/var/www/html
+      - /var/www/html/vendor
+      - /var/www/html/node_modules
+      - storage-data:/var/www/html/storage
+    ports:
+      - "5173:5173"  # Vite dev server
+      - "8000:8000"  # Laravel dev server
+    networks:
+      - genealogy-network
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    profiles:
+      - development
+    command: ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=8000 & npm run dev -- --host 0.0.0.0 --port 5173"]
+
+# =============================================================================
+# Production Load Balancer (Nginx)
+# =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: genealogy-nginx
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - storage-data:/var/www/html/storage:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - genealogy-network
+    depends_on:
+      - app
+    profiles:
+      - production

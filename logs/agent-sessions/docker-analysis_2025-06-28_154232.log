@@ -1,0 +1,443 @@
+# Docker Deployment Strategy Analysis for Laravel Genealogy Application
+# Agent Session: Docker Analysis Agent
+# Timestamp: 2025-06-28 15:42:32
+# Task: 1.005 - Docker Deployment Strategy Analysis
+
+## Executive Summary
+
+This analysis provides a comprehensive Docker deployment strategy for the Laravel 12 genealogy application. The application is a multi-tenant family tree management system with GEDCOM import/export capabilities, media handling, and complex genealogical relationship queries using MySQL Recursive CTEs.
+
+## Application Architecture Analysis
+
+### Core Technology Stack
+- **Framework**: Laravel 12.18+ (PHP 8.3+)
+- **Frontend**: TallStack (Tailwind CSS, Alpine.js, Laravel, Livewire 3.6)
+- **Database**: MySQL 8.0.1+ (REQUIRED for Recursive CTEs)
+- **Queue System**: Database-driven queues (default)
+- **Cache**: Database-based caching (default)
+- **Session Storage**: Database sessions
+- **File Storage**: Local storage with multiple disk configurations
+
+### Critical MySQL 8.0.1+ Requirement
+The application extensively uses MySQL's WITH RECURSIVE Common Table Expressions (CTEs) for:
+- Ancestor tree traversal queries
+- Descendant tree generation
+- Complex genealogical relationship mapping
+- Performance-optimized family tree queries
+
+**MySQL Version Constraint**: MySQL 8.0.1+ is MANDATORY due to CTE usage in:
+- `/app/Livewire/People/Ancestors.php`
+- `/app/Livewire/People/Descendants.php`
+- `/database/seeders/TreeSeeder.php`
+
+### Storage Requirements Analysis
+
+#### File System Structure
+```
+storage/app/public/
+├── gedcom/           # GEDCOM import/export files (.ged format)
+├── photos/           # Full-size genealogy photos (organized by team_id/)
+├── photos-096/       # 96px thumbnails (organized by team_id/)
+├── photos-384/       # 384px thumbnails (organized by team_id/)
+├── profile-photos/   # User profile pictures
+├── files/            # General file uploads
+└── backups/          # Application backups
+```
+
+#### Media Library Configuration
+- **Max File Size**: 10MB per file
+- **Image Processing**: GD or ImageMagick support required
+- **Queue Processing**: Media conversions use queue system
+- **Image Formats**: WEBP, JPEG, PNG, GIF, SVG, AVIF support
+- **Video Thumbnails**: FFmpeg support available
+
+#### Backup System
+- **Strategy**: Spatie Laravel Backup
+- **Includes**: Database dumps + application files
+- **Excludes**: vendor/, node_modules/
+- **Retention**: 7 days all, 16 days daily, 8 weeks weekly, 4 months monthly, 2 years yearly
+- **Compression**: ZIP with level 9 compression
+- **Schedule**: Daily at 23:00, cleanup at 22:30
+
+## Docker Service Architecture Recommendations
+
+### 1. Core Application Stack
+
+#### PHP-FPM Application Container
+```dockerfile
+# Base: php:8.3-fpm-alpine
+Services:
+- PHP 8.3+ with FPM
+- Required PHP Extensions:
+  - pdo_mysql (MySQL 8.0+ support)
+  - gd or imagick (image processing)
+  - redis (optional, for Redis caching)
+  - zip (backup compression)
+  - exif (photo metadata)
+  - intl (internationalization - 11 languages supported)
+  - bcmath (genealogy calculations)
+  - mbstring (multi-byte string support)
+
+Volume Mounts:
+- ./:/var/www/html (application code)
+- genealogy_storage:/var/www/html/storage/app
+- genealogy_public_storage:/var/www/html/storage/app/public
+```
+
+#### Web Server Container
+```dockerfile
+# Base: nginx:alpine
+Services:
+- Nginx web server
+- Static asset serving
+- PHP-FPM upstream proxy
+
+Volume Mounts:
+- ./public:/var/www/html/public:ro
+- genealogy_public_storage:/var/www/html/storage/app/public:ro
+- nginx_config:/etc/nginx/conf.d
+```
+
+#### Database Container
+```dockerfile
+# Base: mysql:8.0 (MINIMUM version 8.0.1 for CTE support)
+Environment:
+- MYSQL_ROOT_PASSWORD
+- MYSQL_DATABASE=genealogy
+- MYSQL_USER=genealogy_user
+- MYSQL_PASSWORD
+
+Configuration:
+- Character Set: utf8mb4
+- Collation: utf8mb4_unicode_ci
+- InnoDB Storage Engine
+- Sufficient memory for CTE operations
+
+Volume Mounts:
+- genealogy_mysql_data:/var/lib/mysql
+- mysql_config:/etc/mysql/conf.d
+```
+
+### 2. Optional Enhancement Services
+
+#### Redis Container (Recommended for Production)
+```dockerfile
+# Base: redis:7-alpine
+Purpose:
+- Cache optimization (replace database cache)
+- Session storage (replace database sessions)
+- Queue optimization (replace database queues)
+
+Volume Mounts:
+- genealogy_redis_data:/data
+```
+
+#### Queue Worker Container
+```dockerfile
+# Base: Same as PHP-FPM container
+Purpose:
+- Background job processing
+- Media conversion jobs
+- GEDCOM import/export processing
+- Email notifications
+
+Command: php artisan queue:work --sleep=3 --tries=3
+```
+
+#### Scheduler Container
+```dockerfile
+# Base: Same as PHP-FPM container
+Purpose:
+- Laravel task scheduling
+- Backup automation (daily at 23:00)
+- Backup cleanup (daily at 22:30)
+
+Command: php artisan schedule:work
+```
+
+### 3. Development vs Production Configurations
+
+#### Development Environment
+```yaml
+services:
+  app:
+    build: ./docker/php-fpm
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - CACHE_STORE=database
+      - QUEUE_CONNECTION=database
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    depends_on:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=genealogy
+
+  # Optional: Mailhog for email testing
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025"
+```
+
+#### Production Environment
+```yaml
+services:
+  app:
+    image: genealogy-app:latest
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=mysql
+      - CACHE_STORE=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ssl_certificates:/etc/nginx/ssl
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+    secrets:
+      - mysql_root_password
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+
+  queue-worker:
+    image: genealogy-app:latest
+    command: php artisan queue:work --sleep=3 --tries=3
+    deploy:
+      replicas: 2
+
+  scheduler:
+    image: genealogy-app:latest
+    command: php artisan schedule:work
+```
+
+## Volume and Storage Strategy
+
+### Persistent Volumes Required
+1. **genealogy_mysql_data** - Database persistence
+2. **genealogy_storage** - Laravel storage directory
+3. **genealogy_public_storage** - Public file storage (photos, GEDCOM files)
+4. **genealogy_backups** - Backup storage
+5. **genealogy_redis_data** - Redis persistence (if used)
+
+### File Upload Considerations
+- **Photo Storage**: Team-based organization (photos/{team_id}/)
+- **Multi-resolution**: Three photo sizes (full, 384px, 96px)
+- **GEDCOM Files**: Import/export genealogy data files
+- **Backup Files**: Compressed archives with genealogy data
+- **Security**: Public storage needs proper access controls
+
+## Network Configuration
+
+### Internal Services Communication
+- **App ↔ MySQL**: Port 3306 (internal network)
+- **App ↔ Redis**: Port 6379 (internal network)  
+- **Web ↔ App**: PHP-FPM socket/port 9000
+- **Queue Workers ↔ Redis/MySQL**: Database connections
+
+### External Access
+- **Web Interface**: Port 80/443 (HTTPS recommended)
+- **Development**: Port 8080 for local access
+
+## Security Considerations
+
+### Genealogy Data Protection
+- **Sensitive Data**: Family information, personal details, photos
+- **Multi-tenancy**: Team-based data isolation required
+- **Privacy**: GDPR compliance considerations
+- **Backup Security**: Encrypted backup archives (optional password protection)
+
+### Container Security
+- **Non-root Users**: Run containers as non-root where possible
+- **Secrets Management**: Use Docker secrets for passwords
+- **Network Isolation**: Internal-only communication for database/cache
+- **Image Security**: Regular base image updates
+- **File Permissions**: Proper storage directory permissions
+
+### Database Security
+- **MySQL Version**: Ensure 8.0.1+ for security and CTE support
+- **User Privileges**: Dedicated MySQL user with minimal required privileges
+- **Connection Security**: SSL connections for production
+- **Backup Encryption**: Consider encrypted database dumps
+
+## Environment Variables Strategy
+
+### Required Environment Variables
+```bash
+# Application
+APP_NAME=Genealogy
+APP_ENV=production
+APP_KEY=base64:your-app-key
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+
+# Database (CRITICAL: MySQL 8.0.1+)
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=genealogy
+DB_USERNAME=genealogy_user
+DB_PASSWORD=secure_password
+
+# Cache & Sessions
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# Queue System
+QUEUE_CONNECTION=redis
+
+# File Storage
+FILESYSTEM_DISK=local
+MEDIA_DISK=files
+
+# Backup Configuration
+BACKUP_DISK=backups
+BACKUP_DAILY_CLEANUP=22:30
+BACKUP_DAILY_RUN=23:00
+BACKUP_MAIL_ADDRESS=admin@your-domain.com
+
+# Image Processing
+IMAGE_DRIVER=gd
+```
+
+### Development Overrides
+```bash
+APP_ENV=local
+APP_DEBUG=true
+DB_HOST=localhost
+DB_PORT=3306
+CACHE_STORE=database
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+MAIL_MAILER=log
+```
+
+## Performance Optimization
+
+### Database Optimization
+- **InnoDB Configuration**: Optimize for CTE operations
+- **Index Strategy**: Genealogy relationship queries are index-heavy
+- **Connection Pooling**: Consider connection pooling for high traffic
+- **Query Caching**: MySQL query cache for repeated ancestor/descendant queries
+
+### Storage Optimization
+- **Image Optimization**: Multi-resolution photo storage strategy
+- **CDN Integration**: Consider CDN for photo delivery
+- **Backup Optimization**: Compressed backups with retention policies
+
+### Caching Strategy
+- **Redis Cache**: Replace database cache for better performance
+- **Object Caching**: Laravel model caching for genealogy data
+- **Asset Caching**: Proper HTTP caching headers for photos
+
+## Deployment Process
+
+### Build Process
+1. **Multi-stage Dockerfile**: Separate build and runtime stages
+2. **Composer Install**: Production dependencies only
+3. **NPM Build**: Compile frontend assets (Vite)
+4. **Asset Optimization**: Image optimization, CSS/JS minification
+5. **Laravel Optimization**: Route, config, view caching
+
+### Migration Strategy
+1. **Database Migrations**: Laravel migrations with team seeding
+2. **Storage Setup**: Create required storage directories
+3. **Symlinks**: Laravel storage:link command
+4. **Asset Publishing**: Vendor assets publication
+5. **Permission Setup**: Proper file permissions for uploads
+
+### Health Checks
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+## Monitoring and Logging
+
+### Application Monitoring
+- **Laravel Logs**: Daily log rotation
+- **Queue Monitoring**: Failed job tracking
+- **Database Performance**: MySQL slow query log
+- **Storage Monitoring**: Disk usage tracking
+
+### Backup Monitoring
+- **Backup Success**: Email notifications
+- **Backup Health**: Size and integrity checks
+- **Retention Policy**: Automated cleanup monitoring
+
+### Genealogy-Specific Metrics
+- **GEDCOM Import Success Rate**: Track import failures
+- **Photo Upload Performance**: Monitor image processing
+- **Tree Query Performance**: CTE query optimization
+- **User Activity**: Multi-tenant usage patterns
+
+## Troubleshooting Guide
+
+### Common Issues
+1. **MySQL Version**: Ensure 8.0.1+ for CTE support
+2. **Storage Permissions**: 755/644 for uploads directory
+3. **Image Processing**: GD/ImageMagick extension availability
+4. **Memory Limits**: PHP memory for large GEDCOM imports
+5. **File Upload Limits**: PHP max_file_size for photos
+
+### Debug Commands
+```bash
+# Container health
+docker-compose ps
+docker-compose logs -f app
+
+# Laravel health
+docker-compose exec app php artisan about
+docker-compose exec app php artisan queue:work --once
+docker-compose exec app php artisan storage:link
+
+# Database connectivity
+docker-compose exec mysql mysql -u genealogy_user -p genealogy
+```
+
+## Conclusion
+
+This Docker deployment strategy provides a robust, scalable foundation for the Laravel genealogy application. Key considerations include:
+
+1. **MySQL 8.0.1+ Requirement**: Non-negotiable for CTE functionality
+2. **Multi-resolution Image Storage**: Optimized photo handling strategy
+3. **Backup Integration**: Comprehensive data protection
+4. **Security Focus**: Family data requires enhanced protection
+5. **Performance Optimization**: CTE queries and media handling optimization
+
+The architecture supports both development and production environments with appropriate service scaling and monitoring capabilities.
+
+---
+Generated by Docker Analysis Agent - Task 1.005
+Timestamp: 2025-06-28 15:42:32

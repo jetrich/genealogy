@@ -1,0 +1,136 @@
+# Laravel .dockerignore file optimized for genealogy application
+# ==============================================================
+
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Documentation
+README*.md
+CHANGELOG.md
+LICENSE
+docs/
+*.md
+!docker/*/README.md
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm
+.yarn
+
+# PHP Development
+vendor/
+composer.lock
+.phpunit.result.cache
+phpunit.xml
+.php_cs.cache
+.php-cs-fixer.cache
+
+# Laravel specific
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/app/public/*
+!storage/app/public/.gitignore
+bootstrap/cache/*
+.env.backup
+
+# Testing
+tests/
+coverage/
+.coverage
+.nyc_output
+.phpunit
+
+# Build artifacts
+/build
+/dist
+/public/build
+/public/hot
+/public/storage
+
+# Backups and temporary files
+*.sql
+*.sql.gz
+*.backup
+*.bak
+*.tmp
+*.temp
+
+# Operating system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker related (avoid recursion)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Development tools
+.editorconfig
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+jest.config.js
+webpack.mix.js
+vite.config.js
+tailwind.config.js
+postcss.config.js
+package*.json
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Environment specific
+.vagrant/
+Homestead.json
+Homestead.yaml
+
+# IDE helper files
+_ide_helper.php
+_ide_helper_models.php
+.phpstorm.meta.php
+
+# Security
+*.pem
+*.key
+*.crt
+*.csr
+
+# Project specific exclusions
+/genealogy-data/
+/genealogy-exports/
+*.ged.bak
+
+# Exclude development Docker configurations
+docker/development/
+docker/local/
+docker-compose.override.yml

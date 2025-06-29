@@ -26,6 +26,7 @@ use Spatie\Activitylog\Models\Activity;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use App\Models\Concerns\HasSecureTeamScope;
 
 final class Person extends Model implements HasMedia
 {
@@ -34,6 +35,7 @@ final class Person extends Model implements HasMedia
     use InteractsWithMedia;
     use LogsActivity;
     use SoftDeletes;
+    use HasSecureTeamScope;
 
     /**
      * The attributes that are mass assignable.
@@ -430,19 +432,9 @@ final class Person extends Model implements HasMedia
     }
 
     /* -------------------------------------------------------------------------------------------- */
-    // Scopes (global)
+    // Scopes (global) - SECURITY: Now handled by HasSecureTeamScope trait
     /* -------------------------------------------------------------------------------------------- */
-    #[Override]
-    protected static function booted(): void
-    {
-        self::addGlobalScope('team', function (Builder $builder): void {
-            if (Auth::guest() || auth()->user()->is_developer) {
-                return;
-            }
-
-            $builder->where('people.team_id', auth()->user()->currentTeam->id);
-        });
-    }
+    // Vulnerable global scope removed - replaced with secure trait that prevents developer bypasses
 
     /* -------------------------------------------------------------------------------------------- */
     // Accessors & Mutators

@@ -68,6 +68,10 @@
             "@php artisan key:generate --ansi",
             "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
+        ],
+        "security-check": [
+            "composer audit --no-dev",
+            "npm audit --audit-level=moderate"
         ]
     },
     "extra": {

@@ -15,11 +15,13 @@ use Override;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Activitylog\Traits\LogsActivity;
+use App\Models\Concerns\HasSecureTeamScope;
 
 final class Couple extends Model
 {
     use HasFactory;
     use LogsActivity;
+    use HasSecureTeamScope;
 
     /**
      * The attributes that are mass assignable.
@@ -136,25 +138,9 @@ final class Couple extends Model
     }
 
     /* -------------------------------------------------------------------------------------------- */
-    // Global Scopes
+    // Global Scopes - SECURITY: Now handled by HasSecureTeamScope trait
     /* -------------------------------------------------------------------------------------------- */
-    #[Override]
-    protected static function booted(): void
-    {
-        self::addGlobalScope('team', function (Builder $builder): void {
-            // Skip if the user is a guest
-            if (auth()->guest()) {
-                return;
-            }
-
-            // Apply team scope if the user is not a developer
-            if (auth()->user()->is_developer) {
-                return;
-            }
-
-            $builder->where('couples.team_id', auth()->user()->currentTeam->id);
-        });
-    }
+    // Vulnerable global scope removed - replaced with secure trait that prevents developer bypasses
 
     /* -------------------------------------------------------------------------------------------- */
     // Accessors & Mutators

@@ -16,4 +16,12 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    server: {
+        host: 'localhost',  // Explicit localhost binding
+        cors: true,
+        fs: {
+            strict: true,   // Enable strict file system access
+            deny: ['.env', '.env.*', '*.{pem,crt,key}', 'id_rsa*', '*.p12', '*.log']  // Block sensitive files
+        }
+    }
 });
