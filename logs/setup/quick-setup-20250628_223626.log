@@ -1,0 +1,35 @@
+[2025-06-28 22:36:29] [INFO] Checking Docker requirements...
+[2025-06-28 22:36:30] [SUCCESS] Docker 28.3.0 and Compose 2.37.3 detected
+[2025-06-28 22:36:30] [INFO] Starting automatic setup...
+[2025-06-28 22:36:30] [INFO] === SYSTEM INFORMATION ===
+[2025-06-28 22:36:30] [INFO] Date: Sat Jun 28 10:36:30 PM CDT 2025
+[2025-06-28 22:36:30] [INFO] User: jwoltje
+[2025-06-28 22:36:30] [INFO] Working Directory: /home/jwoltje/src/genealogy
+[2025-06-28 22:36:30] [INFO] PHP Version: PHP 8.4.8 (cli) (built: Jun  9 2025 13:42:27) (NTS)
+[2025-06-28 22:36:30] [INFO] Composer Version: Composer version 2.5.5 2023-03-21 11:50:05
+[2025-06-28 22:36:30] [INFO] Node Version: v22.17.0
+[2025-06-28 22:36:30] [INFO] NPM Version: 10.9.2
+[2025-06-28 22:36:30] [INFO] Docker Version: Docker version 28.3.0, build 38b7060
+[2025-06-28 22:36:30] [INFO] Docker Compose: Docker Compose version v2.37.3
+[2025-06-28 22:36:30] [INFO] OS: Linux dragon-deb 6.1.0-37-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.140-1 (2025-05-22) x86_64 GNU/Linux
+[2025-06-28 22:36:30] [INFO] === END SYSTEM INFORMATION ===
+[2025-06-28 22:36:30] [INFO] Starting Docker deployment setup...
+[2025-06-28 22:36:30] [INFO] === DOCKER DEPLOYMENT SETUP ===
+[2025-06-28 22:36:30] [INFO] Step 1/6: Stopping existing containers...
+[2025-06-28 22:36:30] [INFO] Step 2/6: Configuring environment for Docker...
+[2025-06-28 22:36:30] [INFO] Using existing database root password
+[2025-06-28 22:36:30] [INFO] Using existing database user password
+[2025-06-28 22:36:30] [SUCCESS] Environment configured for Docker with secure credentials
+[2025-06-28 22:36:30] [INFO] Step 3/6: Creating Docker configurations...
+[2025-06-28 22:36:30] [SUCCESS] Docker configurations created
+[2025-06-28 22:36:30] [INFO] Step 4/6: Starting MariaDB and Redis services...
+[2025-06-28 22:36:30] [INFO] Executing: Start database and cache services
+[2025-06-28 22:36:30] [INFO] Command: docker compose up -d database cache
+ Container genealogy-mariadb  Creating
+ Container genealogy-mariadb  Created
+ Container genealogy-mariadb  Starting
+ Container genealogy-redis  Starting
+ Container genealogy-mariadb  Started
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint genealogy-redis (83900dbe83c0d6afd467b714e69ce50a0dd9cdecf844401385f757ebfdb28779): Bind for 0.0.0.0:6379 failed: port is already allocated
+[2025-06-28 22:36:30] [ERROR] Start database and cache services failed with exit code 1
+[2025-06-28 22:36:30] [ERROR] Failed to start database and cache services

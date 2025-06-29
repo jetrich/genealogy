@@ -1,0 +1,137 @@
+[2025-06-28 22:35:44] [INFO] Checking Docker requirements...
+[2025-06-28 22:35:44] [SUCCESS] Docker 28.3.0 and Compose 2.37.3 detected
+[2025-06-28 22:35:44] [INFO] Starting automatic setup...
+[2025-06-28 22:35:44] [INFO] === SYSTEM INFORMATION ===
+[2025-06-28 22:35:44] [INFO] Date: Sat Jun 28 10:35:44 PM CDT 2025
+[2025-06-28 22:35:44] [INFO] User: jwoltje
+[2025-06-28 22:35:44] [INFO] Working Directory: /home/jwoltje/src/genealogy
+[2025-06-28 22:35:44] [INFO] PHP Version: PHP 8.4.8 (cli) (built: Jun  9 2025 13:42:27) (NTS)
+[2025-06-28 22:35:45] [INFO] Composer Version: Composer version 2.5.5 2023-03-21 11:50:05
+[2025-06-28 22:35:45] [INFO] Node Version: v22.17.0
+[2025-06-28 22:35:45] [INFO] NPM Version: 10.9.2
+[2025-06-28 22:35:45] [INFO] Docker Version: Docker version 28.3.0, build 38b7060
+[2025-06-28 22:35:45] [INFO] Docker Compose: Docker Compose version v2.37.3
+[2025-06-28 22:35:45] [INFO] OS: Linux dragon-deb 6.1.0-37-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.140-1 (2025-05-22) x86_64 GNU/Linux
+[2025-06-28 22:35:45] [INFO] === END SYSTEM INFORMATION ===
+[2025-06-28 22:35:45] [INFO] Starting Docker deployment setup...
+[2025-06-28 22:35:45] [INFO] === DOCKER DEPLOYMENT SETUP ===
+[2025-06-28 22:35:45] [INFO] Step 1/6: Stopping existing containers...
+[2025-06-28 22:35:45] [INFO] Stopping standalone genealogy-mysql container...
+[2025-06-28 22:35:45] [INFO] Executing: Stop standalone genealogy-mysql
+[2025-06-28 22:35:45] [INFO] Command: docker stop genealogy-mysql && docker rm genealogy-mysql
+genealogy-mysql
+genealogy-mysql
+[2025-06-28 22:35:47] [SUCCESS] Stop standalone genealogy-mysql completed successfully
+[2025-06-28 22:35:47] [INFO] Step 2/6: Configuring environment for Docker...
+[2025-06-28 22:35:47] [INFO] Generated secure database root password
+[2025-06-28 22:35:47] [INFO] Generated secure database user password
+[2025-06-28 22:35:47] [SUCCESS] Environment configured for Docker with secure credentials
+[2025-06-28 22:35:47] [INFO] Step 3/6: Creating Docker configurations...
+[2025-06-28 22:35:47] [SUCCESS] Docker configurations created
+[2025-06-28 22:35:47] [INFO] Step 4/6: Starting MariaDB and Redis services...
+[2025-06-28 22:35:47] [INFO] Executing: Start database and cache services
+[2025-06-28 22:35:47] [INFO] Command: docker compose up -d database cache
+ database Pulling 
+ d9d352c11bbd Pulling fs layer 
+ 5302baf52b05 Pulling fs layer 
+ 64bab579fe2a Pulling fs layer 
+ 9321dc82d393 Pulling fs layer 
+ 5083331da375 Pulling fs layer 
+ 3cc70a241ff3 Pulling fs layer 
+ 357e05a36168 Pulling fs layer 
+ a9946569e436 Pulling fs layer 
+ 5083331da375 Waiting 
+ 3cc70a241ff3 Waiting 
+ 357e05a36168 Waiting 
+ 9321dc82d393 Waiting 
+ a9946569e436 Waiting 
+ d9d352c11bbd Downloading  311.3kB/29.72MB
+ d9d352c11bbd Downloading  7.712MB/29.72MB
+ d9d352c11bbd Downloading  19.64MB/29.72MB
+ d9d352c11bbd Verifying Checksum 
+ d9d352c11bbd Download complete 
+ d9d352c11bbd Extracting  327.7kB/29.72MB
+ d9d352c11bbd Extracting  10.16MB/29.72MB
+ d9d352c11bbd Extracting  22.94MB/29.72MB
+ 5302baf52b05 Downloading  1.009kB/1.343kB
+ 5302baf52b05 Downloading  1.343kB/1.343kB
+ 5302baf52b05 Verifying Checksum 
+ 5302baf52b05 Download complete 
+ 9321dc82d393 Downloading     116B/116B
+ 9321dc82d393 Verifying Checksum 
+ 9321dc82d393 Download complete 
+ d9d352c11bbd Extracting  28.18MB/29.72MB
+ d9d352c11bbd Extracting  29.72MB/29.72MB
+ 64bab579fe2a Downloading  54.22kB/5.35MB
+ d9d352c11bbd Pull complete 
+ 5302baf52b05 Extracting  1.343kB/1.343kB
+ 5302baf52b05 Extracting  1.343kB/1.343kB
+ 5302baf52b05 Pull complete 
+ 64bab579fe2a Downloading  573.4kB/5.35MB
+ 64bab579fe2a Downloading  3.293MB/5.35MB
+ 64bab579fe2a Verifying Checksum 
+ 64bab579fe2a Download complete 
+ 64bab579fe2a Extracting  65.54kB/5.35MB
+ 64bab579fe2a Extracting  4.915MB/5.35MB
+ 64bab579fe2a Extracting   5.35MB/5.35MB
+ 64bab579fe2a Pull complete 
+ 9321dc82d393 Extracting     116B/116B
+ 9321dc82d393 Extracting     116B/116B
+ 9321dc82d393 Pull complete 
+ 5083331da375 Downloading     331B/331B
+ 5083331da375 Verifying Checksum 
+ 5083331da375 Download complete 
+ 5083331da375 Extracting     331B/331B
+ 5083331da375 Extracting     331B/331B
+ 5083331da375 Pull complete 
+ 3cc70a241ff3 Downloading  528.4kB/69.46MB
+ 3cc70a241ff3 Downloading  3.711MB/69.46MB
+ 3cc70a241ff3 Downloading  13.24MB/69.46MB
+ 357e05a36168 Downloading  1.009kB/4.038kB
+ 357e05a36168 Downloading  4.038kB/4.038kB
+ 357e05a36168 Verifying Checksum 
+ 357e05a36168 Download complete 
+ 3cc70a241ff3 Downloading  25.42MB/69.46MB
+ 3cc70a241ff3 Downloading  35.51MB/69.46MB
+ 3cc70a241ff3 Downloading  46.62MB/69.46MB
+ 3cc70a241ff3 Downloading  58.28MB/69.46MB
+ a9946569e436 Downloading  1.009kB/8.398kB
+ a9946569e436 Downloading  8.398kB/8.398kB
+ a9946569e436 Verifying Checksum 
+ a9946569e436 Download complete 
+ 3cc70a241ff3 Downloading  68.89MB/69.46MB
+ 3cc70a241ff3 Verifying Checksum 
+ 3cc70a241ff3 Download complete 
+ 3cc70a241ff3 Extracting  557.1kB/69.46MB
+ 3cc70a241ff3 Extracting  12.26MB/69.46MB
+ 3cc70a241ff3 Extracting  23.95MB/69.46MB
+ 3cc70a241ff3 Extracting  35.65MB/69.46MB
+ 3cc70a241ff3 Extracting  46.79MB/69.46MB
+ 3cc70a241ff3 Extracting  54.59MB/69.46MB
+ 3cc70a241ff3 Extracting  64.62MB/69.46MB
+ 3cc70a241ff3 Extracting  69.07MB/69.46MB
+ 3cc70a241ff3 Extracting  69.46MB/69.46MB
+ 3cc70a241ff3 Pull complete 
+ 357e05a36168 Extracting  4.038kB/4.038kB
+ 357e05a36168 Extracting  4.038kB/4.038kB
+ 357e05a36168 Pull complete 
+ a9946569e436 Extracting  8.398kB/8.398kB
+ a9946569e436 Extracting  8.398kB/8.398kB
+ a9946569e436 Pull complete 
+ database Pulled 
+ Network genealogy_genealogy-network  Creating
+ Network genealogy_genealogy-network  Created
+ Volume "genealogy_redis-data"  Creating
+ Volume "genealogy_redis-data"  Created
+ Volume "genealogy_mysql-data"  Creating
+ Volume "genealogy_mysql-data"  Created
+ Container genealogy-redis  Creating
+ Container genealogy-mariadb  Creating
+ Container genealogy-mariadb  Created
+ Container genealogy-redis  Created
+ Container genealogy-redis  Starting
+ Container genealogy-mariadb  Starting
+ Container genealogy-mariadb  Started
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint genealogy-redis (0b5240b895d6b27b936f4b2d6f70cc26544bfa911a96b951864fd22d076c0681): Bind for 0.0.0.0:6379 failed: port is already allocated
+[2025-06-28 22:35:53] [ERROR] Start database and cache services failed with exit code 1
+[2025-06-28 22:35:53] [ERROR] Failed to start database and cache services

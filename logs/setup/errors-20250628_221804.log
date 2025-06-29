@@ -1,0 +1,27 @@
+[2025-06-28 22:18:31] [ERROR] Composer dependency fixing failed with exit code 1
+--- Last 10 lines of output ---
+    825▕         }
+    826▕     }
+
+      [2m+47 vendor frames [22m
+
+  48  artisan:13
+      Illuminate\Foundation\Application::handleCommand()
+
+Script @php artisan optimize:clear handling the post-autoload-dump event returned with error code 1
+[2025-06-28 22:18:31] [ERROR] Composer dependency fixing failed with exit code 1
+--- End of output ---
+[2025-06-28 22:18:31] [ERROR] Composer dependency resolution failed
+[2025-06-28 22:18:35] [ERROR] Database migration and seeding failed with exit code 1
+--- Last 10 lines of output ---
+    824▕             );
+    825▕         }
+    826▕     }
+
+      [2m+37 vendor frames [22m
+
+  38  artisan:13
+      Illuminate\Foundation\Application::handleCommand()
+
+[2025-06-28 22:18:35] [ERROR] Database migration and seeding failed with exit code 1
+--- End of output ---

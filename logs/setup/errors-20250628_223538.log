@@ -1,0 +1,14 @@
+[2025-06-28 22:35:53] [ERROR] Start database and cache services failed with exit code 1
+--- Last 10 lines of output ---
+ Volume "genealogy_mysql-data"  Created
+ Container genealogy-redis  Creating
+ Container genealogy-mariadb  Creating
+ Container genealogy-mariadb  Created
+ Container genealogy-redis  Created
+ Container genealogy-redis  Starting
+ Container genealogy-mariadb  Starting
+ Container genealogy-mariadb  Started
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint genealogy-redis (0b5240b895d6b27b936f4b2d6f70cc26544bfa911a96b951864fd22d076c0681): Bind for 0.0.0.0:6379 failed: port is already allocated
+[2025-06-28 22:35:53] [ERROR] Start database and cache services failed with exit code 1
+--- End of output ---
+[2025-06-28 22:35:53] [ERROR] Failed to start database and cache services

@@ -1,0 +1,14 @@
+[2025-06-28 22:36:30] [ERROR] Start database and cache services failed with exit code 1
+--- Last 10 lines of output ---
+[2025-06-28 22:36:30] [INFO] Step 4/6: Starting MariaDB and Redis services...
+[2025-06-28 22:36:30] [INFO] Executing: Start database and cache services
+[2025-06-28 22:36:30] [INFO] Command: docker compose up -d database cache
+ Container genealogy-mariadb  Creating
+ Container genealogy-mariadb  Created
+ Container genealogy-mariadb  Starting
+ Container genealogy-redis  Starting
+ Container genealogy-mariadb  Started
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint genealogy-redis (83900dbe83c0d6afd467b714e69ce50a0dd9cdecf844401385f757ebfdb28779): Bind for 0.0.0.0:6379 failed: port is already allocated
+[2025-06-28 22:36:30] [ERROR] Start database and cache services failed with exit code 1
+--- End of output ---
+[2025-06-28 22:36:30] [ERROR] Failed to start database and cache services
