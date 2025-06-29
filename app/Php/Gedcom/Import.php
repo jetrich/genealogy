@@ -221,21 +221,69 @@ final class Import
 
     /**
      * Create Person model from GEDCOM Individual record
-     * This is a placeholder - will be implemented in Phase 3
      */
     private function createPersonFromGedcom(Indi $individual, Team $team): Person
     {
-        // Phase 3 implementation placeholder
-        Log::info('Person creation placeholder called', [
-            'individual_id' => $individual->getId(),
-        ]);
+        $gedcomId = $individual->getId();
         
-        // Return minimal person for now
-        return Person::create([
-            'firstname' => 'GEDCOM',
-            'surname' => 'Import',
+        Log::debug('Creating person from GEDCOM individual', [
+            'gedcom_id' => $gedcomId,
             'team_id' => $team->id,
         ]);
+        
+        // Extract names from GEDCOM
+        $names = $this->extractNamesFromGedcom($individual);
+        
+        // Extract birth information
+        $birthInfo = $this->extractBirthInfoFromGedcom($individual);
+        
+        // Extract death information  
+        $deathInfo = $this->extractDeathInfoFromGedcom($individual);
+        
+        // Extract sex/gender
+        $sex = $this->extractSexFromGedcom($individual);
+        
+        // Create Person record
+        $personData = [
+            'team_id' => $team->id,
+            'firstname' => $names['firstname'],
+            'surname' => $names['surname'],
+            'birthname' => $names['birthname'],
+            'nickname' => $names['nickname'],
+            'sex' => $sex,
+        ];
+        
+        // Add birth data if available
+        if ($birthInfo['dob']) {
+            $personData['dob'] = $birthInfo['dob'];
+        } elseif ($birthInfo['yob']) {
+            $personData['yob'] = $birthInfo['yob'];
+        }
+        if ($birthInfo['pob']) {
+            $personData['pob'] = $birthInfo['pob'];
+        }
+        
+        // Add death data if available
+        if ($deathInfo['dod']) {
+            $personData['dod'] = $deathInfo['dod'];
+        } elseif ($deathInfo['yod']) {
+            $personData['yod'] = $deathInfo['yod'];
+        }
+        if ($deathInfo['pod']) {
+            $personData['pod'] = $deathInfo['pod'];
+        }
+        
+        $person = Person::create($personData);
+        
+        Log::debug('Person created successfully', [
+            'person_id' => $person->id,
+            'gedcom_id' => $gedcomId,
+            'name' => $person->name,
+            'birth_year' => $person->birthYear,
+            'death_year' => $person->deathYear,
+        ]);
+        
+        return $person;
     }
 
     /**
@@ -303,8 +351,162 @@ final class Import
     }
 
     /**
+     * Extract names from GEDCOM Individual record
+     */
+    private function extractNamesFromGedcom(Indi $individual): array
+    {
+        $names = [
+            'firstname' => null,
+            'surname' => null,
+            'birthname' => null,
+            'nickname' => null,
+        ];
+        
+        $nameRecords = $individual->getName();
+        if (empty($nameRecords)) {
+            return $names;
+        }
+        
+        // Use first name record as primary
+        $primaryName = $nameRecords[0];
+        $fullName = $primaryName->getName();
+        
+        if ($fullName) {
+            // Parse GEDCOM name format: "Given /Surname/" or "Given /Surname/ Suffix"
+            if (preg_match('/^([^\/]*)\s*\/([^\/]*)\/', $fullName, $matches)) {
+                $names['firstname'] = trim($matches[1]) ?: null;
+                $names['surname'] = trim($matches[2]) ?: null;
+            } else {
+                // Fallback: treat as firstname if no surname delimiters
+                $names['firstname'] = trim($fullName) ?: null;
+            }
+        }
+        
+        // Extract other name components
+        if ($primaryName->getGivn()) {
+            $names['firstname'] = $primaryName->getGivn();
+        }
+        if ($primaryName->getSurn()) {
+            $names['surname'] = $primaryName->getSurn();
+        }
+        if ($primaryName->getNick()) {
+            $names['nickname'] = $primaryName->getNick();
+        }
+        
+        // Look for birth name in other name records
+        foreach ($nameRecords as $nameRecord) {
+            if ($nameRecord->getType() === 'BIRTH' && $nameRecord->getSurn()) {
+                $names['birthname'] = $nameRecord->getSurn();
+                break;
+            }
+        }
+        
+        return $names;
+    }
+    
+    /**
+     * Extract birth information from GEDCOM Individual record
+     */
+    private function extractBirthInfoFromGedcom(Indi $individual): array
+    {
+        $birthInfo = [
+            'dob' => null,
+            'yob' => null,
+            'pob' => null,
+        ];
+        
+        $events = $individual->getEven();
+        if (empty($events)) {
+            return $birthInfo;
+        }
+        
+        $birthEvent = $this->findEventByType($events, 'PhpGedcom\\Record\\Indi\\Birt');
+        if (!$birthEvent) {
+            return $birthInfo;
+        }
+        
+        // Extract birth date
+        if ($birthEvent->getDate()) {
+            $parsedDate = $this->parseGedcomDate($birthEvent->getDate());
+            if ($parsedDate) {
+                $birthInfo['dob'] = $parsedDate->format('Y-m-d');
+                $birthInfo['yob'] = (int) $parsedDate->format('Y');
+            }
+        }
+        
+        // Extract birth place
+        if ($birthEvent->getPlac() && $birthEvent->getPlac()->getPlac()) {
+            $birthInfo['pob'] = $birthEvent->getPlac()->getPlac();
+        }
+        
+        return $birthInfo;
+    }
+    
+    /**
+     * Extract death information from GEDCOM Individual record
+     */
+    private function extractDeathInfoFromGedcom(Indi $individual): array
+    {
+        $deathInfo = [
+            'dod' => null,
+            'yod' => null,
+            'pod' => null,
+        ];
+        
+        $events = $individual->getEven();
+        if (empty($events)) {
+            return $deathInfo;
+        }
+        
+        $deathEvent = $this->findEventByType($events, 'PhpGedcom\\Record\\Indi\\Deat');
+        if (!$deathEvent) {
+            return $deathInfo;
+        }
+        
+        // Extract death date
+        if ($deathEvent->getDate()) {
+            $parsedDate = $this->parseGedcomDate($deathEvent->getDate());
+            if ($parsedDate) {
+                $deathInfo['dod'] = $parsedDate->format('Y-m-d');
+                $deathInfo['yod'] = (int) $parsedDate->format('Y');
+            }
+        }
+        
+        // Extract death place
+        if ($deathEvent->getPlac() && $deathEvent->getPlac()->getPlac()) {
+            $deathInfo['pod'] = $deathEvent->getPlac()->getPlac();
+        }
+        
+        return $deathInfo;
+    }
+    
+    /**
+     * Extract sex/gender from GEDCOM Individual record
+     */
+    private function extractSexFromGedcom(Indi $individual): ?string
+    {
+        $sex = $individual->getSex();
+        
+        if (!$sex) {
+            return null;
+        }
+        
+        // Convert GEDCOM sex codes to Laravel application format
+        switch (strtoupper($sex)) {
+            case 'M':
+                return 'M';
+            case 'F':
+                return 'F';
+            case 'U':
+            case 'X':
+                return 'X'; // Unknown/Other
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Find a specific event type from the events array
-     * This helper will be used in Phase 3 for birth/death event extraction
      */
     protected function findEventByType(array $events, string $eventClass): ?object
     {
