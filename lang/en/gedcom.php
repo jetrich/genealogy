@@ -28,4 +28,8 @@ return [
     'after_import'  => 'After importing',
     'before_import' => 'Before importing',
     'validate'      => 'Validate your GEDCOM file at',
+
+    'file_required'   => 'GEDCOM file is required',
+    'import_success'  => 'Import successful',
+    'import_failed'   => 'Import failed',
 ];

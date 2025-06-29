@@ -43,6 +43,7 @@ final class CreateNewUser implements CreatesNewUsers
             'password'  => Hash::make($input['password']),
         ]), function (User $user): void {
             $this->createTeam($user);
+            $this->grantDefaultPermissions($user);
         }));
     }
 
@@ -60,5 +61,49 @@ final class CreateNewUser implements CreatesNewUsers
         // Set the current_team_id to the newly created personal team
         $user->current_team_id = $team->id;
         $user->save();
+    }
+
+    /**
+     * Grant default permissions to new users for basic genealogy operations.
+     */
+    protected function grantDefaultPermissions(User $user): void
+    {
+        // Find a developer user who can grant permissions
+        $developer = User::where('is_developer', true)->first();
+        
+        if (!$developer) {
+            // If no developer exists, try to find user ID 1 from seeding
+            $developer = User::find(1);
+        }
+        
+        if ($developer) {
+            try {
+                // Grant essential permissions for genealogy operations
+                $permissions = [
+                    'person:create' => 'Default permission for genealogy operations',
+                    'person:read' => 'Default permission for viewing people',
+                    'person:update' => 'Default permission for editing people',
+                    'couple:create' => 'Default permission for creating relationships',
+                    'couple:read' => 'Default permission for viewing relationships',
+                    'couple:update' => 'Default permission for editing relationships',
+                ];
+
+                foreach ($permissions as $permission => $justification) {
+                    // Check if permission exists before granting
+                    if (\App\Models\Permission::where('name', $permission)->exists()) {
+                        if (!$user->hasPermission($permission)) {
+                            $user->grantPermission($permission, $developer, $justification);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Log the error but don't fail registration
+                \Log::warning('Failed to grant default permissions to new user', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
     }
 }

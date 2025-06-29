@@ -157,6 +157,56 @@ class PermissionSeeder extends Seeder
                 'category' => 'media',
                 'is_sensitive' => true,
             ],
+
+            // Basic Genealogy Permissions (for regular users)
+            [
+                'name' => 'person:create',
+                'description' => 'Create new people in genealogy data',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'person:read',
+                'description' => 'View people in genealogy data',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'person:update',
+                'description' => 'Edit people in genealogy data',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'person:delete',
+                'description' => 'Delete people from genealogy data',
+                'category' => 'genealogy',
+                'is_sensitive' => true,
+            ],
+            [
+                'name' => 'couple:create',
+                'description' => 'Create new couple relationships',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'couple:read',
+                'description' => 'View couple relationships',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'couple:update',
+                'description' => 'Edit couple relationships',
+                'category' => 'genealogy',
+                'is_sensitive' => false,
+            ],
+            [
+                'name' => 'couple:delete',
+                'description' => 'Delete couple relationships',
+                'category' => 'genealogy',
+                'is_sensitive' => true,
+            ],
         ];
 
         foreach ($permissions as $permission) {

@@ -38,13 +38,59 @@ final class Importteam extends Component
     {
         $this->validate();
 
-        $import = new Import(
-            $this->name,
-            $this->description,
-            $this->file ? $this->file->getClientOriginalName() : '',
-        );
+        if (!$this->file) {
+            $this->toast()->error(__('gedcom.file_required'))->send();
+            return;
+        }
 
-        $this->toast()->success(__('app.saved'), mb_strtoupper(__('app.under_construction')))->send();
+        try {
+            // Create import instance with user
+            $import = new Import(
+                $this->name,
+                $this->description,
+                $this->file->getClientOriginalName(),
+                $this->user
+            );
+
+            // Get the temporary file path
+            $gedcomFilePath = $this->file->getRealPath();
+
+            // Import the GEDCOM file
+            $result = $import->import($gedcomFilePath);
+
+            if ($result['success']) {
+                $stats = $result['stats'];
+                $team = $result['team'];
+
+                // Show success message with import statistics
+                $message = sprintf(
+                    'GEDCOM import successful! Team "%s" created with %d individuals and %d families.',
+                    $team->name,
+                    $stats['individuals'],
+                    $stats['families']
+                );
+
+                if ($stats['errors'] > 0) {
+                    $message .= sprintf(' (%d errors encountered - check logs)', $stats['errors']);
+                }
+
+                $this->toast()->success(__('gedcom.import_success'), $message)->send();
+
+                // Redirect to the new team
+                return redirect()->route('teams.show', $team);
+            } else {
+                $this->toast()->error(__('gedcom.import_failed'))->send();
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('GEDCOM import error in Livewire component', [
+                'error' => $e->getMessage(),
+                'file' => $this->file ? $this->file->getClientOriginalName() : 'none',
+                'user_id' => $this->user->id,
+            ]);
+
+            $this->toast()->error(__('gedcom.import_failed'), $e->getMessage())->send();
+        }
     }
 
     // -----------------------------------------------------------------------
