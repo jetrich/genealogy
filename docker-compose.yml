@@ -4,8 +4,6 @@
 # Multi-environment support: development, staging, production
 # Includes: MySQL, Redis, PHP-FPM, Nginx, Queue Workers, Scheduler
 
-version: '3.8'
-
 networks:
   genealogy-network:
     driver: bridge
@@ -22,22 +20,22 @@ volumes:
 
 services:
   # =============================================================================
-  # Database Service - MySQL 8.0 with genealogy optimizations
+  # Database Service - MariaDB 11.4 with genealogy optimizations
   # =============================================================================
   database:
-    image: mysql:8.0
-    container_name: genealogy-mysql
+    image: mariadb:11.4
+    container_name: genealogy-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-genealogy_root_pass}
-      MYSQL_DATABASE: ${DB_DATABASE:-genealogy}
-      MYSQL_USER: ${DB_USERNAME:-genealogy_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
-      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_DATABASE}
+      MARIADB_USER: ${DB_USERNAME}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "no"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./docker/mariadb/conf.d:/etc/mysql/conf.d:ro
+      - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "${DB_PORT:-3306}:3306"
     networks:
@@ -56,7 +54,7 @@ services:
       "--max-heap-table-size=64M"
     ]
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       timeout: 10s
       retries: 5
       interval: 30s
@@ -106,9 +104,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-genealogy}
-      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
-      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       
       # Cache and Session Configuration
       CACHE_STORE: redis
@@ -182,9 +180,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-genealogy}
-      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
-      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       
       # Redis Configuration
       REDIS_HOST: cache
@@ -224,9 +222,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-genealogy}
-      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
-      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       
       # Redis Configuration
       REDIS_HOST: cache
@@ -264,9 +262,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-genealogy}
-      DB_USERNAME: ${DB_USERNAME:-genealogy_user}
-      DB_PASSWORD: ${DB_PASSWORD:-genealogy_pass}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       
       # Backup Configuration
       BACKUP_DISK: backups

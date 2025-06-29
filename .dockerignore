@@ -100,10 +100,10 @@ logs/
 .stylelintrc*
 jest.config.js
 webpack.mix.js
-vite.config.js
+# vite.config.js needed for frontend builds
 tailwind.config.js
 postcss.config.js
-package*.json
+package-lock.json
 
 # Cache directories
 .cache/

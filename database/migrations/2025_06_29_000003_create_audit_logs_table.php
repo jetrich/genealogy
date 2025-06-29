@@ -62,8 +62,8 @@ return new class extends Migration
             $table->index(['requires_review', 'reviewed']);
             $table->index(['ip_address', 'created_at']);
             
-            // Full-text search index for context
-            $table->fullText(['action', 'context']);
+            // Full-text search index for action (context is JSON, can't be in FULLTEXT)
+            $table->fullText(['action']);
         });
     }
 
