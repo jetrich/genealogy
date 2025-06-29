@@ -157,24 +157,24 @@ final class Import
             $surname = $name->getSurn() ?? '';
         }
 
-        // Extract birth information
-        $birth = $individual->getBirt();
+        // Extract birth information from events
         $birthDate = null;
         $birthPlace = '';
+        $birth = $this->findEventByType($individual->getEven() ?: [], 'PhpGedcom\Record\Indi\Birt');
         
-        if ($birth && $birth[0]) {
-            $birthDate = $this->parseGedcomDate($birth[0]->getDate());
-            $birthPlace = $birth[0]->getPlac() ? $birth[0]->getPlac()->getPlac() : '';
+        if ($birth) {
+            $birthDate = $this->parseGedcomDate($birth->getDate());
+            $birthPlace = $birth->getPlac() ? $birth->getPlac()->getPlac() : '';
         }
 
-        // Extract death information
-        $death = $individual->getDeat();
+        // Extract death information from events
         $deathDate = null;
         $deathPlace = '';
+        $death = $this->findEventByType($individual->getEven() ?: [], 'PhpGedcom\Record\Indi\Deat');
         
-        if ($death && $death[0]) {
-            $deathDate = $this->parseGedcomDate($death[0]->getDate());
-            $deathPlace = $death[0]->getPlac() ? $death[0]->getPlac()->getPlac() : '';
+        if ($death) {
+            $deathDate = $this->parseGedcomDate($death->getDate());
+            $deathPlace = $death->getPlac() ? $death->getPlac()->getPlac() : '';
         }
 
         // Extract sex
@@ -252,23 +252,23 @@ final class Import
             return null;
         }
 
-        // Extract marriage information
-        $marriage = $family->getMarr();
+        // Extract marriage information from events
         $marriageDate = null;
         $isMarried = false;
-
-        if ($marriage && $marriage[0]) {
-            $marriageDate = $this->parseGedcomDate($marriage[0]->getDate());
+        $marriage = $this->findEventByType($family->getEven() ?: [], 'PhpGedcom\\Record\\Fam\\Marr');
+        
+        if ($marriage) {
+            $marriageDate = $this->parseGedcomDate($marriage->getDate());
             $isMarried = true;
         }
 
-        // Extract divorce information
-        $divorce = $family->getDiv();
+        // Extract divorce information from events
         $divorceDate = null;
         $hasEnded = false;
-
-        if ($divorce && $divorce[0]) {
-            $divorceDate = $this->parseGedcomDate($divorce[0]->getDate());
+        $divorce = $this->findEventByType($family->getEven() ?: [], 'PhpGedcom\\Record\\Fam\\Div');
+        
+        if ($divorce) {
+            $divorceDate = $this->parseGedcomDate($divorce->getDate());
             $hasEnded = true;
         }
 
@@ -359,6 +359,19 @@ final class Import
             ]);
             return null;
         }
+    }
+
+    /**
+     * Find a specific event type from the events array
+     */
+    private function findEventByType(array $events, string $eventClass): ?object
+    {
+        foreach ($events as $event) {
+            if ($event instanceof $eventClass) {
+                return $event;
+            }
+        }
+        return null;
     }
 
     /**
