@@ -288,26 +288,103 @@ final class Import
 
     /**
      * Create Couple model from GEDCOM Family record
-     * This is a placeholder - will be implemented in Phase 4
      */
     private function createCoupleFromGedcom(Fam $family, Team $team): ?Couple
     {
-        // Phase 4 implementation placeholder
-        Log::info('Couple creation placeholder called', [
-            'family_id' => $family->getId(),
+        $familyId = $family->getId();
+        
+        Log::debug('Creating couple from GEDCOM family', [
+            'gedcom_family_id' => $familyId,
+            'team_id' => $team->id,
         ]);
         
-        return null; // Skip for now
+        // Extract spouse information
+        $husbandGedcomId = $family->getHusb();
+        $wifeGedcomId = $family->getWife();
+        
+        if (!$husbandGedcomId && !$wifeGedcomId) {
+            Log::warning('Family has no spouses defined', ['family_id' => $familyId]);
+            return null;
+        }
+        
+        // Map GEDCOM IDs to Person IDs
+        $person1Id = $husbandGedcomId ? ($this->gedcomPersonMap[$husbandGedcomId] ?? null) : null;
+        $person2Id = $wifeGedcomId ? ($this->gedcomPersonMap[$wifeGedcomId] ?? null) : null;
+        
+        if (!$person1Id && !$person2Id) {
+            Log::warning('Could not find persons for family', [
+                'family_id' => $familyId,
+                'husband_gedcom_id' => $husbandGedcomId,
+                'wife_gedcom_id' => $wifeGedcomId,
+            ]);
+            return null;
+        }
+        
+        // Extract marriage information
+        $marriageInfo = $this->extractMarriageInfoFromGedcom($family);
+        
+        // Create couple record
+        $coupleData = [
+            'team_id' => $team->id,
+            'person1_id' => $person1Id,
+            'person2_id' => $person2Id,
+            'is_married' => $marriageInfo['is_married'],
+            'has_ended' => $marriageInfo['has_ended'],
+        ];
+        
+        if ($marriageInfo['date_start']) {
+            $coupleData['date_start'] = $marriageInfo['date_start'];
+        }
+        if ($marriageInfo['date_end']) {
+            $coupleData['date_end'] = $marriageInfo['date_end'];
+        }
+        
+        $couple = Couple::create($coupleData);
+        
+        Log::debug('Couple created successfully', [
+            'couple_id' => $couple->id,
+            'gedcom_family_id' => $familyId,
+            'person1_id' => $person1Id,
+            'person2_id' => $person2Id,
+            'is_married' => $marriageInfo['is_married'],
+        ]);
+        
+        return $couple;
     }
 
     /**
      * Update parent-child relationships after all individuals are imported
-     * This is a placeholder - will be implemented in Phase 4
      */
     private function updateParentChildRelationships(\PhpGedcom\Gedcom $gedcom): void
     {
-        // Phase 4 implementation placeholder
-        Log::info('Parent-child relationship update placeholder called');
+        Log::info('Starting parent-child relationship update');
+        
+        $families = $gedcom->getFam();
+        if (!$families || empty($families)) {
+            Log::info('No families found for parent-child relationships');
+            return;
+        }
+        
+        $relationshipsUpdated = 0;
+        
+        foreach ($families as $gedcomId => $family) {
+            try {
+                $this->updateChildrenForFamily($family);
+                $relationshipsUpdated++;
+                
+            } catch (\Exception $e) {
+                Log::warning('Failed to update family relationships', [
+                    'gedcom_family_id' => $gedcomId,
+                    'error' => $e->getMessage(),
+                ]);
+                $this->importStats['errors']++;
+            }
+        }
+        
+        Log::info('Parent-child relationship update completed', [
+            'families_processed' => $relationshipsUpdated,
+            'total_errors' => $this->importStats['errors'],
+        ]);
     }
 
     /**
@@ -502,6 +579,128 @@ final class Import
                 return 'X'; // Unknown/Other
             default:
                 return null;
+        }
+    }
+
+    /**
+     * Extract marriage information from GEDCOM Family record
+     */
+    private function extractMarriageInfoFromGedcom(Fam $family): array
+    {
+        $marriageInfo = [
+            'is_married' => false,
+            'has_ended' => false,
+            'date_start' => null,
+            'date_end' => null,
+        ];
+        
+        $events = $family->getEven();
+        if (empty($events)) {
+            return $marriageInfo;
+        }
+        
+        // Look for marriage event
+        $marriageEvent = $this->findEventByType($events, 'PhpGedcom\\Record\\Fam\\Marr');
+        if ($marriageEvent) {
+            $marriageInfo['is_married'] = true;
+            
+            if ($marriageEvent->getDate()) {
+                $parsedDate = $this->parseGedcomDate($marriageEvent->getDate());
+                if ($parsedDate) {
+                    $marriageInfo['date_start'] = $parsedDate->format('Y-m-d');
+                }
+            }
+        }
+        
+        // Look for divorce events
+        $divorceEvent = $this->findEventByType($events, 'PhpGedcom\\Record\\Fam\\Div');
+        if ($divorceEvent) {
+            $marriageInfo['has_ended'] = true;
+            
+            if ($divorceEvent->getDate()) {
+                $parsedDate = $this->parseGedcomDate($divorceEvent->getDate());
+                if ($parsedDate) {
+                    $marriageInfo['date_end'] = $parsedDate->format('Y-m-d');
+                }
+            }
+        }
+        
+        return $marriageInfo;
+    }
+    
+    /**
+     * Update children for a specific family
+     */
+    private function updateChildrenForFamily(Fam $family): void
+    {
+        $familyId = $family->getId();
+        $children = $family->getChil();
+        
+        if (!$children || empty($children)) {
+            Log::debug('No children found for family', ['family_id' => $familyId]);
+            return;
+        }
+        
+        // Get parent information
+        $husbandGedcomId = $family->getHusb();
+        $wifeGedcomId = $family->getWife();
+        
+        $fatherId = $husbandGedcomId ? ($this->gedcomPersonMap[$husbandGedcomId] ?? null) : null;
+        $motherId = $wifeGedcomId ? ($this->gedcomPersonMap[$wifeGedcomId] ?? null) : null;
+        
+        // Find the couple record for this family (parents_id reference)
+        $coupleId = null;
+        if ($fatherId && $motherId) {
+            $couple = Couple::where('person1_id', $fatherId)
+                ->where('person2_id', $motherId)
+                ->orWhere(function ($query) use ($fatherId, $motherId) {
+                    $query->where('person1_id', $motherId)
+                          ->where('person2_id', $fatherId);
+                })
+                ->first();
+            
+            if ($couple) {
+                $coupleId = $couple->id;
+            }
+        }
+        
+        // Update each child
+        foreach ($children as $childGedcomId) {
+            $childPersonId = $this->gedcomPersonMap[$childGedcomId] ?? null;
+            
+            if (!$childPersonId) {
+                Log::warning('Child person not found in mapping', [
+                    'family_id' => $familyId,
+                    'child_gedcom_id' => $childGedcomId,
+                ]);
+                continue;
+            }
+            
+            $updateData = [];
+            
+            // Set individual parent references
+            if ($fatherId) {
+                $updateData['father_id'] = $fatherId;
+            }
+            if ($motherId) {
+                $updateData['mother_id'] = $motherId;
+            }
+            
+            // Set couple reference if both parents exist
+            if ($coupleId) {
+                $updateData['parents_id'] = $coupleId;
+            }
+            
+            if (!empty($updateData)) {
+                Person::where('id', $childPersonId)->update($updateData);
+                
+                Log::debug('Child relationships updated', [
+                    'child_person_id' => $childPersonId,
+                    'father_id' => $fatherId,
+                    'mother_id' => $motherId,
+                    'parents_id' => $coupleId,
+                ]);
+            }
         }
     }
 
