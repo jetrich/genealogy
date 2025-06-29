@@ -196,6 +196,11 @@ class SecurityMonitoring
             return true;
         }
         
+        // Skip security checks for GEDCOM import operations
+        if ($this->isGedcomImportOperation($request)) {
+            return false;
+        }
+        
         // Check cross-team data access attempts
         if (auth()->check() && $this->detectCrossTeamAccess($request)) {
             return true;
@@ -277,6 +282,32 @@ class SecurityMonitoring
     }
     
     /**
+     * Check if request is a legitimate GEDCOM import operation.
+     */
+    private function isGedcomImportOperation(Request $request): bool
+    {
+        // GEDCOM import paths
+        $gedcomPaths = [
+            'gedcom/importteam',
+            'livewire/message/gedcom.importteam',
+        ];
+        
+        foreach ($gedcomPaths as $path) {
+            if (str_contains($request->path(), $path)) {
+                return true;
+            }
+        }
+        
+        // Check for Livewire GEDCOM component updates
+        if ($request->hasHeader('X-Livewire') && 
+            str_contains($request->getContent(), 'importteam')) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
      * Detect cross-team data access attempts.
      */
     private function detectCrossTeamAccess(Request $request): bool
@@ -287,6 +318,11 @@ class SecurityMonitoring
         
         $user = auth()->user();
         $userTeamId = $user->currentTeam?->id;
+        
+        // Skip if user has no current team (new users, GEDCOM imports)
+        if (!$userTeamId) {
+            return false;
+        }
         
         // Check URL parameters for team manipulation
         $urlSegments = $request->segments();
