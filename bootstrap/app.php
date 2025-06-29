@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append : [
+            App\Http\Middleware\SecurityHeaders::class,
+            App\Http\Middleware\AdvancedRateLimiting::class,
             App\Http\Middleware\Localization::class,
             App\Http\Middleware\SecurityMonitoring::class,
 

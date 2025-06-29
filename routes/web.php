@@ -123,6 +123,13 @@ Route::middleware([
 });
 
 // -----------------------------------------------------------------------------------
+// CSP violation reporting endpoint
+// -----------------------------------------------------------------------------------
+Route::post('/api/csp-report', [App\Http\Controllers\Security\CSPReportController::class, 'report'])
+    ->name('csp.report')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+
+// -----------------------------------------------------------------------------------
 // set application language in session
 // actual language switching wil be handled by App\Http\Middleware\Localization::class
 // -----------------------------------------------------------------------------------
