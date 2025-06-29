@@ -38,13 +38,41 @@ final class Importteam extends Component
     {
         $this->validate();
 
-        $import = new Import(
-            $this->name,
-            $this->description,
-            $this->file ? $this->file->getClientOriginalName() : '',
-        );
+        try {
+            // Store the uploaded file temporarily
+            if (!$this->file) {
+                $this->toast()->error(__('app.error'), 'No file uploaded')->send();
+                return;
+            }
 
-        $this->toast()->success(__('app.saved'), mb_strtoupper(__('app.under_construction')))->send();
+            $gedcomFilePath = $this->file->getRealPath();
+            
+            $import = new Import(
+                $this->name,
+                $this->description,
+                $this->file->getClientOriginalName(),
+                $this->user
+            );
+
+            $result = $import->import($gedcomFilePath);
+            
+            if ($result['success']) {
+                $stats = $result['stats'];
+                $message = "Import completed! {$stats['individuals']} individuals";
+                if ($stats['families'] > 0) {
+                    $message .= ", {$stats['families']} families";
+                }
+                if ($stats['errors'] > 0) {
+                    $message .= " ({$stats['errors']} errors)";
+                }
+                
+                $this->toast()->success(__('app.saved'), $message)->send();
+                $this->redirect(route('teams.show', $result['team']));
+            }
+            
+        } catch (\Exception $e) {
+            $this->toast()->error(__('app.error'), 'Import failed: ' . $e->getMessage())->send();
+        }
     }
 
     // -----------------------------------------------------------------------
