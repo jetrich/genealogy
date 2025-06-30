@@ -73,6 +73,7 @@ Route::middleware([
     Route::controller(App\Http\Controllers\Back\GedcomController::class)->prefix('gedcom')->as('gedcom.')->group(function (): void {
         Route::get('exportteam', 'exportteam')->name('exportteam');
         Route::get('importteam', 'importteam')->name('importteam');
+        Route::get('validate', 'validateImport')->name('validate');
     });
 
     // -----------------------------------------------------------------------------------

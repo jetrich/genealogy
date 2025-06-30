@@ -16,6 +16,13 @@ final class GedcomController extends Controller
         return view('back.gedcom.importteam');
     }
 
+    public function validateImport(): View
+    {
+        abort_unless(auth()->user()->hasPermission('person:create'), 403, __('app.unauthorized_access'));
+
+        return view('back.gedcom.validate-import');
+    }
+
     public function exportteam(): View
     {
         return view('back.gedcom.exportteam');

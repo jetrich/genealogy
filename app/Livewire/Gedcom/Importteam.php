@@ -40,6 +40,10 @@ final class Importteam extends Component
         $this->validate();
 
         try {
+            // Check if file has been pre-validated
+            $validationResults = session('gedcom_validation_results');
+            $validatedFilename = session('gedcom_validated_file');
+            
             // Enhanced security validation for file upload
             if (!$this->file) {
                 Log::warning('GEDCOM import attempt without file', [
@@ -49,6 +53,32 @@ final class Importteam extends Component
                 ]);
                 $this->toast()->error(__('app.error'), 'No file uploaded')->send();
                 return;
+            }
+
+            // Check if this file has been validated
+            if ($validationResults && $validatedFilename === $this->file->getClientOriginalName()) {
+                if (!$validationResults['can_import']) {
+                    $this->toast()->error(__('app.error'), 'File validation indicates this file cannot be imported safely. Please validate the file first and resolve any issues.')->send();
+                    return;
+                }
+                
+                // Show validation summary in success message
+                $issueCount = count($validationResults['issues']);
+                $warningCount = count($validationResults['warnings']);
+                
+                if ($warningCount > 0) {
+                    $this->toast()->warning(__('app.warning'), "File has {$warningCount} warnings but is safe to import. Proceeding...")->send();
+                }
+                
+                Log::info('GEDCOM import proceeding with pre-validation', [
+                    'user_id' => $this->user->id,
+                    'filename' => $this->file->getClientOriginalName(),
+                    'validation_issues' => $issueCount,
+                    'validation_warnings' => $warningCount,
+                ]);
+            } else {
+                // File hasn't been validated - recommend validation first
+                $this->toast()->info(__('app.info'), 'Tip: You can validate your GEDCOM file first to check for potential issues before importing.')->send();
             }
 
             // Additional security checks on uploaded file
@@ -65,6 +95,7 @@ final class Importteam extends Component
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
                 'session_id' => session()->getId(),
+                'pre_validated' => $validationResults !== null,
             ]);
             
             $import = new Import(
@@ -77,6 +108,9 @@ final class Importteam extends Component
             $result = $import->import($gedcomFilePath);
             
             if ($result['success']) {
+                // Clear validation session data
+                session()->forget(['gedcom_validation_results', 'gedcom_validated_file']);
+                
                 $stats = $result['stats'];
                 $message = "Import completed! {$stats['individuals']} individuals";
                 if ($stats['families'] > 0) {
@@ -96,6 +130,8 @@ final class Importteam extends Component
                 
                 $this->toast()->success(__('app.saved'), $message)->send();
                 $this->redirect(route('teams.show', $result['team']));
+            } else {
+                $this->toast()->error(__('app.error'), 'Import failed. Please check the file format and try again, or use the validation tool to identify issues.')->send();
             }
             
         } catch (\Exception $e) {
@@ -117,7 +153,13 @@ final class Importteam extends Component
                 'trace' => $e->getTraceAsString(),
             ]);
             
-            $this->toast()->error(__('app.error'), 'Import failed: ' . $e->getMessage())->send();
+            // Provide helpful error message with remediation suggestion
+            $errorMessage = 'Import failed: ' . $e->getMessage();
+            if (strpos($e->getMessage(), 'parsing') !== false || strpos($e->getMessage(), 'version') !== false) {
+                $errorMessage .= ' Try using the GEDCOM validation tool to identify and resolve compatibility issues.';
+            }
+            
+            $this->toast()->error(__('app.error'), $errorMessage)->send();
         }
     }
 

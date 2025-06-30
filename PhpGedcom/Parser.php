@@ -193,7 +193,11 @@ class Parser
 
     public function normalizeIdentifier($identifier)
     {
-        $identifier = mb_trim($identifier);
+        if ($identifier === null || $identifier === '') {
+            return '';
+        }
+        
+        $identifier = mb_trim((string) $identifier);
         $identifier = mb_trim($identifier, '@');
 
         return $identifier;

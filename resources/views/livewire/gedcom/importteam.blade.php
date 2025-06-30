@@ -20,6 +20,18 @@
             </p>
         </div>
 
+        <x-ts-alert color="blue">
+            <x-slot:title>
+                {{ __('Recommended: Validate First') }}
+            </x-slot:title>
+
+            {{ __('For Family Tree Maker files or if you encounter import issues, use our validation tool first:') }}
+            <br />
+            <x-ts-link class="text-white text-lg font-semibold" href="{{ route('gedcom.validate') }}">
+                {{ __('→ Validate GEDCOM File') }}
+            </x-ts-link>
+        </x-ts-alert>
+
         <x-ts-alert color="cyan">
             <x-slot:title>
                 {{ __('gedcom.before_import') }} ...
@@ -28,8 +40,6 @@
             {{ __('gedcom.validate') }} :
             <x-ts-link class="text-white text-lg" href="https://ged-inline.org/" target="_blank" />
         </x-ts-alert>
-
-        <x-under-construction />
     </x-slot>
 
     <x-slot name="form" enctype="multipart/form-data">
